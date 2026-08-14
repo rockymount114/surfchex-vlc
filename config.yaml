@@ -1,0 +1,47 @@
+# IMPORTANT:
+# Set this to the actual SurfChex CAMERA WEB PAGE that produces
+# the stream. Do not put the signed .m3u8 URL here.
+camera_page_url: "https://www.surfchex.com/"
+
+# Optional initial URL. It can be the currently valid signed URL.
+# If it expires, Playwright obtains a new one from camera_page_url.
+initial_stream_url: "https://www.surfchex.com/hls/svfp/video1_stream.m3u8?st=83usYz-yTw53m_D0ORa4Tg&e=1786717645"
+
+# Standard 64-bit VLC installation path.
+vlc_path: "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"
+
+# true = no visible Chrome window.
+# false = useful for troubleshooting and for sites that behave differently headless.
+headless: true
+
+browser_profile_dir: "state/chromium-profile"
+
+# Only capture HLS requests matching this text.
+stream_url_contains: "surfchex.com/hls/"
+
+# Optional regex. Leave null unless you need tighter filtering.
+# Example:
+# stream_url_regex: "video1_stream\\.m3u8"
+stream_url_regex: null
+
+# Refresh before signed URL expiration.
+refresh_before_seconds: 60
+
+# Wait between recovery attempts.
+retry_seconds: 10
+
+# VLC process monitoring interval.
+monitor_interval_seconds: 5
+
+page_timeout_seconds: 60
+capture_timeout_seconds: 45
+network_idle_wait_seconds: 5
+
+# VLC HLS/network buffering.
+vlc_network_caching_ms: 1500
+
+# Additional VLC command-line arguments.
+vlc_extra_args:
+  - "--no-one-instance"
+
+log_file: "logs/surfchex-vlc.log"
