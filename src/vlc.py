@@ -83,8 +83,19 @@ class VLCPlayer:
         stop_event: asyncio.Event,
         refresh_before_seconds: int,
         check_interval: int,
+        rotate_after_seconds: Optional[float] = None,
     ) -> str:
+        """Watch until VLC exits, the URL is about to expire, a camera rotation
+        is due, or shutdown is requested.
+
+        Returns one of: 'vlc-exited', 'url-expiring', 'rotate', 'shutdown'.
+        """
         expiration = stream_expiration_epoch(current_url)
+        rotate_deadline = (
+            time.monotonic() + rotate_after_seconds
+            if rotate_after_seconds
+            else None
+        )
 
         if expiration:
             expiry_text = datetime.fromtimestamp(
@@ -118,6 +129,10 @@ class VLCPlayer:
                         max(0, remaining),
                     )
                     return "url-expiring"
+
+            if rotate_deadline is not None and time.monotonic() >= rotate_deadline:
+                self.log.info("Camera rotation interval reached.")
+                return "rotate"
 
             await asyncio.sleep(check_interval)
 

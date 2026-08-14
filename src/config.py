@@ -9,6 +9,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 @dataclass
 class Config:
     camera_page_url: str
+    cameras: dict[str, str]
+    camera: str
+    camera_cycle_seconds: int
     initial_stream_url: str | None
     vlc_path: str
     headless: bool
@@ -30,6 +33,28 @@ class Config:
     obs_port: int
     obs_password: str
     obs_source_name: str
+
+    def camera_slugs(self) -> list[str]:
+        """Ordered camera slugs to use.
+
+        With ``camera_cycle_seconds > 0`` the app cycles through every camera,
+        starting from the configured default.  Otherwise only the default
+        camera is used.  Returns an empty list when no ``cameras`` are set
+        (legacy single ``camera_page_url`` mode).
+        """
+        if not self.cameras:
+            return []
+        slugs = list(self.cameras.keys())
+        if self.camera and self.camera in slugs:
+            slugs.remove(self.camera)
+            slugs.insert(0, self.camera)
+        if self.camera_cycle_seconds > 0:
+            return slugs
+        return [slugs[0]]
+
+    def camera_page_for(self, slug: str) -> str:
+        """Page URL for a camera slug (falls back to the legacy page URL)."""
+        return self.cameras.get(slug) or self.camera_page_url
 
 def expires():
     '''return a UNIX style timestamp representing 5 minutes from now'''
@@ -67,6 +92,14 @@ def load_config(path: str | None = None) -> Config:
     
     return Config(
         camera_page_url=_expand(data["camera_page_url"]),
+        # cameras: slug -> camera page URL; camera: default slug; cycle seconds
+        cameras={
+            str(k).strip(): _expand(str(v))
+            for k, v in (data.get("cameras") or {}).items()
+            if isinstance(v, str) and str(v).strip()
+        },
+        camera=str(data.get("camera", "")).strip(),
+        camera_cycle_seconds=int(data.get("camera_cycle_seconds", 0)),
         initial_stream_url=raw_initial  
         if data.get("initial_stream_url")
         else None,
@@ -85,7 +118,7 @@ def load_config(path: str | None = None) -> Config:
         ),
         stream_url_regex=data.get("stream_url_regex"),
         refresh_before_seconds=int(
-            data.get("refresh_before_seconds", 60)
+            data.get("refresh_before_seconds", 120)
         ),
         retry_seconds=int(data.get("retry_seconds", 10)),
         monitor_interval_seconds=int(

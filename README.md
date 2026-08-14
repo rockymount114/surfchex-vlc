@@ -54,6 +54,25 @@ camera_page_url: "https://www.surfchex.com/ACTUAL-CAMERA-PAGE"
 
 Use the actual SurfChex camera page that you normally open in Chrome.
 
+### Cameras
+
+All SurfChex cameras are listed under `cameras` (slug → page URL). Pick the
+default with `camera` (e.g. `scpierend` = Surf City Pier "T"):
+
+```yaml
+camera: "scpierend"
+```
+
+To loop through **all** cameras automatically, set a rotation interval in
+seconds (0 = stay on the default camera only):
+
+```yaml
+camera_cycle_seconds: 600   # switch to the next camera every 10 minutes
+```
+
+The rotation starts at the default camera and skips any camera that produces
+no stream.
+
 You may leave the current signed URL in:
 
 ```yaml
@@ -73,6 +92,15 @@ To control whether a local VLC window opens, set:
 ```yaml
 vlc_player: false   # false = only send the URL to the OBS source (no VLC window)
 vlc_player: true    # true  = also open the local VLC window (old behavior)
+```
+
+The app reads the `e=...` expiration timestamp from each signed URL and
+automatically fetches a fresh URL **before** it expires (default 120 s
+headroom, auto-widened if refreshes are slow), then pushes it to OBS so the
+source plays non-stop:
+
+```yaml
+refresh_before_seconds: 120
 ```
 
 ## Run

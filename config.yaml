@@ -1,11 +1,76 @@
-# IMPORTANT:
-# Set this to the actual SurfChex CAMERA WEB PAGE that produces
-# the stream. Do not put the signed .m3u8 URL here.
+# ---------------------------------------------------------------------------
+# CAMERAS
+# ---------------------------------------------------------------------------
+# camera_page_url is only used as a fallback when 'cameras' is empty (legacy).
 camera_page_url: "https://www.surfchex.com/"
 
+# All SurfChex cameras (slug: camera page URL). The slug also appears in the
+# HLS stream path (e.g. wb3 -> /hls/wb3/index.m3u8).
+cameras:
+  avon: "https://www.surfchex.com/cams/avon/"                                     # Avon Pier
+  avonsound: "https://www.surfchex.com/cams/avon-nc-soundside/"                   # Avon Soundside
+  bandon: "https://www.surfchex.com/cams/bandon-or/"                              # Bandon, OR
+  bath: "https://www.surfchex.com/cams/bath/"                                     # Bath
+  gp: "https://www.surfchex.com/cams/beaufort-nc/"                                # Beaufort
+  cb2: "https://www.surfchex.com/cams/carolina-beach-center-pier-webcam/"         # Carolina Beach - Center Pier
+  cb: "https://www.surfchex.com/cams/carolina-beach-web-cam/"                     # Carolina Beach - North End
+  dw: "https://www.surfchex.com/cams/downtown-wilmington-web-cam/"                # Downtown Wilmington
+  folly: "https://www.surfchex.com/cams/folly-beach-web-cam/"                     # Folly Beach
+  hatteras1: "https://www.surfchex.com/cams/hatteras-web-cam/"                    # Hatteras
+  bwg: "https://www.surfchex.com/cams/intracoastal-waterway-wrightsville-beach-web-cam/"  # ICW - Wrightsville Beach
+  bt: "https://www.surfchex.com/cams/wb-drawbridge-icw/"                          # ICW-WB Drawbridge
+  khnc: "https://www.surfchex.com/cams/kitty-hawk-nc/"                            # Kitty Hawk
+  kb: "https://www.surfchex.com/cams/kure-beach-web-cam/"                         # Kure Beach
+  kbstreet: "https://www.surfchex.com/cams/kure-beach-street-web-cam/"            # Kure Beach Street
+  squan1: "https://www.surfchex.com/cams/manasquan-web-cam/"                      # Manasquan, NJ
+  middleriver: "https://www.surfchex.com/cams/middle-river-md/"                    # Middle River, MD
+  mg: "https://www.surfchex.com/cams/myrtle-grove-icw/"                           # Myrtle Grove ICW
+  abalonestreet: "https://www.surfchex.com/cams/nags-head-web-cam-abalone-st/"    # Nags Head - Abalone St
+  nh1: "https://www.surfchex.com/cams/nags-head-web-cam/"                         # Nags Head - Jennettes Pier
+  willow: "https://www.surfchex.com/cams/norfolk-va/"                             # Norfolk, VA
+  ntopsail: "https://www.surfchex.com/cams/north-topsail-island-web-cam/"         # North Topsail
+  oakisland: "https://www.surfchex.com/cams/oak-island-north-carolina/"           # Oak Island
+  oib: "https://www.surfchex.com/cams/ocean-isle-beach-web-cam/"                  # Ocean Isle Beach - East End
+  oib1: "https://www.surfchex.com/cams/ocean-isle-beach-fishing-pier-cam/"        # Ocean Isle Beach Pier
+  Ocracoke: "https://www.surfchex.com/cams/ocracoke-nc-live-web-cam-surfchex/"    # Ocracoke
+  pistol: "https://www.surfchex.com/cams/pistol-river-north-oregon/"              # Pistol River, OR
+  rodanthe: "https://www.surfchex.com/cams/rodanthe-web-cam/"                     # Rodanthe
+  rodanthenorth: "https://www.surfchex.com/cams/rodanthe-north/"                  # Rodanthe Fishing Pier
+  waves: "https://www.surfchex.com/cams/rodanthe-sound-side-nc/"                  # Rodanthe Soundside
+  sandbridge: "https://www.surfchex.com/cams/sandbridge-va/"                      # Sandbridge, VA
+  seapath: "https://www.surfchex.com/cams/seapath-yacht-club-web-cam/"            # Seapath Yacht Club
+  svfp: "https://www.surfchex.com/cams/seaview-pier-north-topsail-beach/"         # Seaview Pier
+  sloop: "https://www.surfchex.com/cams/sloop-point/"                             # Sloop Point
+  fishy: "https://www.surfchex.com/cams/southport-web-cam/"                       # Southport
+  spp: "https://www.surfchex.com/cams/southport-live-webcam-waterfront-park/"     # Southport Waterfront Park
+  sunsetbeach: "https://www.surfchex.com/cams/sunset-beach-north-carolina-webcam/"  # Sunset Beach
+  sciga: "https://www.surfchex.com/cams/surf-city-bridge/"                        # Surf City Bridge
+  scp: "https://www.surfchex.com/cams/surf-city-fishing-pier/"                    # Surf City Fishing Pier
+  cityline: "https://www.surfchex.com/cams/surf-city-line-surf-city-nc/"          # Surf City Line
+  sc1: "https://www.surfchex.com/cams/surf-city-pier-north/"                      # Surf City Pier - North
+  scpiersouth: "https://www.surfchex.com/cams/surf-city-pier-south/"              # Surf City Pier - South
+  scpierend: "https://www.surfchex.com/cams/surf-city-fishing-pier-t/"            # Surf City Pier "T"
+  topsail: "https://www.surfchex.com/cams/topsail-beach-nc/"                      # Topsail Beach
+  vb: "https://www.surfchex.com/cams/virginia-beach-web-cam/"                     # Virginia Beach Pier
+  rodanthepi: "https://www.surfchex.com/cams/waves-nc-oceanside/"                 # Waves Oceanside
+  wbsup: "https://www.surfchex.com/cams/wb-lees-cut/"                             # WB - Lees Cut
+  mercers: "https://www.surfchex.com/cams/johnnie-mercers-pier/"                  # WB - Mercers Pier
+  wildwood: "https://www.surfchex.com/cams/wildwood-crest-nj/"                    # Wildwood Crest, NJ
+  wb3: "https://www.surfchex.com/cams/wrightsville-beach/"                        # Wrightsville Beach
+
+# Default camera: use one of the slugs above (e.g. "scpierend" = Surf City Pier "T").
+camera: "scpierend"
+
+# Loop through ALL cameras? 0 = stay on 'camera' only.
+# Set e.g. 600 to automatically switch to the next camera every 10 minutes
+# (starts at the default camera, skips cameras that produce no stream).
+camera_cycle_seconds: 0
+
 # Optional initial URL. It can be the currently valid signed URL.
-# If it expires, Playwright obtains a new one from camera_page_url.
+# If it expires, Playwright obtains a new one from the active camera page.
 # initial_stream_url: "https://www.surfchex.com/hls/svfp/video1_stream.m3u8?st=83usYz-yTw53m_D0ORa4Tg&e={expires}"
+# Surf T
+# initial_stream_url: "https://www.surfchex.com/hls/scpierend/index.m3u8?st=X1BkDCBbTBleijPTBzMSTQ&e={expires}"
 initial_stream_url: null
 
 # Standard 64-bit VLC installation path.
@@ -25,8 +90,11 @@ stream_url_contains: "surfchex.com/hls/"
 # stream_url_regex: "video1_stream\\.m3u8"
 stream_url_regex: null
 
-# Refresh before signed URL expiration.
-refresh_before_seconds: 60
+# How many seconds BEFORE the signed URL expires the app starts refreshing
+# (reads the e=... timestamp from the URL). 120 s gives enough headroom for
+# the camera page reload + capture to finish, so the OBS source keeps playing
+# non-stop. The app also auto-widens this if a refresh takes a long time.
+refresh_before_seconds: 120
 
 # Wait between recovery attempts.
 retry_seconds: 10

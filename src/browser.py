@@ -74,9 +74,12 @@ class StreamBrowser:
 
         return ".m3u8" in url.lower()
 
-    async def get_fresh_stream_url(self) -> Optional[str]:
+    async def get_fresh_stream_url(self, page_url: Optional[str] = None) -> Optional[str]:
         if not self.page:
             raise RuntimeError("Playwright browser is not started.")
+
+        # Default to the legacy single-camera page when none is given.
+        page_url = page_url or self.config.camera_page_url
 
         captured = asyncio.Future()
 
@@ -93,11 +96,11 @@ class StreamBrowser:
         self.page.on("request", on_request)
 
         try:
-            self.log.info("Loading camera page: %s", self.config.camera_page_url)
+            self.log.info("Loading camera page: %s", page_url)
 
             try:
                 await self.page.goto(
-                    self.config.camera_page_url,
+                    page_url,
                     wait_until="domcontentloaded",
                     timeout=self.config.page_timeout_seconds * 1000,
                 )
@@ -129,7 +132,7 @@ class StreamBrowser:
         finally:
             self.page.remove_listener("request", on_request)
 
-    async def refresh_and_get_stream_url(self) -> Optional[str]:
+    async def refresh_and_get_stream_url(self, page_url: Optional[str] = None) -> Optional[str]:
         if not self.page:
             raise RuntimeError("Playwright browser is not started.")
 
@@ -138,4 +141,4 @@ class StreamBrowser:
             timeout=self.config.page_timeout_seconds * 1000,
         )
 
-        return await self.get_fresh_stream_url()
+        return await self.get_fresh_stream_url(page_url=page_url)
