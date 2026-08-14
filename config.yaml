@@ -5,7 +5,8 @@ camera_page_url: "https://www.surfchex.com/"
 
 # Optional initial URL. It can be the currently valid signed URL.
 # If it expires, Playwright obtains a new one from camera_page_url.
-initial_stream_url: "https://www.surfchex.com/hls/svfp/video1_stream.m3u8?st=83usYz-yTw53m_D0ORa4Tg&e=1786717645"
+# initial_stream_url: "https://www.surfchex.com/hls/svfp/video1_stream.m3u8?st=83usYz-yTw53m_D0ORa4Tg&e={expires}"
+initial_stream_url: null
 
 # Standard 64-bit VLC installation path.
 vlc_path: "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"

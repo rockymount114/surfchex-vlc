@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 import yaml
-
+import time
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,6 +26,9 @@ class Config:
     vlc_extra_args: list[str]
     log_file: str
 
+def expires():
+    '''return a UNIX style timestamp representing 5 minutes from now'''
+    return int(time.time()+300)
 
 def _expand(value: str) -> str:
     return os.path.expandvars(os.path.expanduser(value))
@@ -36,10 +39,18 @@ def load_config(path: str | None = None) -> Config:
 
     with config_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
+        
+    # Process initial_stream_url with placeholder replacement
+    raw_initial = data.get("initial_stream_url")
+    if raw_initial:
+        raw_initial = _expand(raw_initial)
+        raw_initial = raw_initial.replace("{expires}", str(expires()))
+    else:
+        raw_initial = None
 
     return Config(
         camera_page_url=_expand(data["camera_page_url"]),
-        initial_stream_url=_expand(data["initial_stream_url"])
+        initial_stream_url=raw_initial  
         if data.get("initial_stream_url")
         else None,
         vlc_path=_expand(data.get(
