@@ -45,6 +45,10 @@ vlc_network_caching_ms: 1500
 vlc_extra_args:
   - "--no-one-instance"
 
+# true  = also open the local VLC window to play the stream (old behavior).
+# false = do NOT open VLC; the app only sends the URL to the OBS source.
+vlc_player: false
+
 log_file: "logs/surfchex-vlc.log"
 
 

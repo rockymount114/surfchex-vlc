@@ -33,9 +33,17 @@ class VLCPlayer:
         self.config = config
         self.log = logging.getLogger("surfchex.vlc")
         self.process: Optional[subprocess.Popen] = None
+        self.enabled = config.vlc_player
 
     def start(self, stream_url: str) -> None:
         self.stop()
+
+        if not self.enabled:
+            self.log.info(
+                "VLC player disabled (vlc_player=false); skipping local VLC "
+                "and only updating the OBS source."
+            )
+            return
 
         if not os.path.exists(self.config.vlc_path):
             raise FileNotFoundError(
@@ -89,9 +97,15 @@ class VLCPlayer:
                 expiry_text,
             )
 
+        if not self.enabled:
+            self.log.info(
+                "VLC player disabled; monitoring only the signed URL expiration "
+                "(no VLC process to watch)."
+            )
+
         while not stop_event.is_set():
 
-            if not self.is_running():
+            if self.enabled and not self.is_running():
                 return "vlc-exited"
 
             if expiration:

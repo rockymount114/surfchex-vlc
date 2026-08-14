@@ -68,6 +68,13 @@ If the page generates several HLS streams, narrow the capture filter:
 stream_url_regex: "video1_stream\\.m3u8"
 ```
 
+To control whether a local VLC window opens, set:
+
+```yaml
+vlc_player: false   # false = only send the URL to the OBS source (no VLC window)
+vlc_player: true    # true  = also open the local VLC window (old behavior)
+```
+
 ## Run
 
 ### Using `uv`

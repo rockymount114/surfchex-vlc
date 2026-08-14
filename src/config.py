@@ -23,6 +23,7 @@ class Config:
     network_idle_wait_seconds: int
     vlc_network_caching_ms: int
     vlc_extra_args: list[str]
+    vlc_player: bool
     log_file: str
     obs_enabled: bool
     obs_host: str
@@ -36,6 +37,15 @@ def expires():
 
 def _expand(value: str) -> str:
     return os.path.expandvars(os.path.expanduser(value))
+
+
+def _as_bool(value, default: bool = False) -> bool:
+    """Parse a YAML/string value into a bool (handles quoted 'false' too)."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return default
 
 
 def load_config(path: str | None = None) -> Config:
@@ -94,6 +104,8 @@ def load_config(path: str | None = None) -> Config:
             data.get("vlc_network_caching_ms", 1500)
         ),
         vlc_extra_args=list(data.get("vlc_extra_args", [])),
+        # true = open the local VLC window; false = only send the URL to OBS
+        vlc_player=_as_bool(data.get("vlc_player", True)),
         log_file=_expand(data.get(
             "log_file",
             str(BASE_DIR / "logs" / "surfchex-vlc.log"),
