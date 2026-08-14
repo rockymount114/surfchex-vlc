@@ -16,12 +16,24 @@ This does **not** modify or forge SurfChex signatures. It obtains a new URL thro
 
 ## Requirements
 
-- Windows 10/11
-- Python 3.11+
+- Windows 10/11 (or Linux)
+- Python 3.11+ or [uv](https://docs.astral.sh/uv/)
 - VLC 64-bit
 - Internet access
 
 ## Installation
+
+### Using `uv` (Recommended)
+
+```bash
+# Sync dependencies
+uv sync
+
+# Install Playwright browser
+uv run playwright install chromium
+```
+
+### Using PowerShell installer
 
 Open PowerShell in this directory:
 
@@ -57,6 +69,14 @@ stream_url_regex: "video1_stream\\.m3u8"
 ```
 
 ## Run
+
+### Using `uv`
+
+```bash
+uv run main.py
+```
+
+### Using PowerShell
 
 ```powershell
 .\run.ps1
