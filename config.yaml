@@ -46,3 +46,12 @@ vlc_extra_args:
   - "--no-one-instance"
 
 log_file: "logs/surfchex-vlc.log"
+
+
+
+obs:
+  enabled: true
+  host: "localhost"
+  port: 4455
+  password: ""                 # if you set one
+  source_name: "Fishing pier Stream live"   # the name of your Media Source in OBS

@@ -6,7 +6,6 @@ import time
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 @dataclass
 class Config:
     camera_page_url: str
@@ -25,6 +24,11 @@ class Config:
     vlc_network_caching_ms: int
     vlc_extra_args: list[str]
     log_file: str
+    obs_enabled: bool
+    obs_host: str
+    obs_port: int
+    obs_password: str
+    obs_source_name: str
 
 def expires():
     '''return a UNIX style timestamp representing 5 minutes from now'''
@@ -48,6 +52,9 @@ def load_config(path: str | None = None) -> Config:
     else:
         raw_initial = None
 
+    # init obs data
+    obs_data = data.get("obs", {})
+    
     return Config(
         camera_page_url=_expand(data["camera_page_url"]),
         initial_stream_url=raw_initial  
@@ -91,4 +98,17 @@ def load_config(path: str | None = None) -> Config:
             "log_file",
             str(BASE_DIR / "logs" / "surfchex-vlc.log"),
         )),
+        
+        # obs data
+        obs_enabled=bool(obs_data.get("enabled", False)),
+        obs_host=_expand(obs_data.get("host", "localhost")),
+        obs_port=int(obs_data.get("port", 4455)),
+        obs_password=_expand(obs_data.get("password", "")),
+        obs_source_name=obs_data.get("source_name", "SurfChex Stream"),
     )
+    
+    
+
+
+
+

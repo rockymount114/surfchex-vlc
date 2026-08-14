@@ -3,14 +3,21 @@ import logging
 import signal
 from pathlib import Path
 
-from browser import StreamBrowser
 from config import load_config
+from browser import StreamBrowser
 from vlc import VLCPlayer
+
+# Try to import OBSUpdater; if missing, disable OBS integration.
+try:
+    from obs_updater import OBSUpdater
+except ImportError:
+    OBSUpdater = None
+    logging.warning("OBSUpdater could not be imported. OBS integration disabled.")
 
 
 def setup_logging(log_file: str) -> None:
+    """Create log directory and configure logging."""
     Path(log_file).parent.mkdir(parents=True, exist_ok=True)
-
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
@@ -22,10 +29,12 @@ def setup_logging(log_file: str) -> None:
 
 
 async def main() -> None:
+    # Load config and set up logging
     config = load_config()
     setup_logging(config.log_file)
-
     log = logging.getLogger("surfchex")
+
+    # Shutdown event
     stop_event = asyncio.Event()
 
     def request_stop(*_args):
@@ -39,23 +48,47 @@ async def main() -> None:
     browser = StreamBrowser(config)
     player = VLCPlayer(config)
 
+    # Initialise OBS updater (optional)
+    obs_updater = None
+    if config.obs_enabled and OBSUpdater is not None:
+        try:
+            obs_updater = OBSUpdater(config)
+            await obs_updater.connect()
+            if obs_updater.ws is not None:
+                log.info("OBS WebSocket connected successfully.")
+            else:
+                log.warning("OBS WebSocket connection failed (ws is None).")
+                obs_updater = None
+        except Exception as e:
+            log.warning("Failed to connect to OBS WebSocket: %s. OBS updates disabled.", e)
+            obs_updater = None
+    elif config.obs_enabled:
+        log.warning("OBS integration enabled in config, but OBSUpdater is not available.")
+
     try:
+        # Start the browser (Playwright)
         await browser.start()
 
-        # Optional initial URL. The application will still refresh it
-        # from the configured SurfChex camera page when VLC fails or
-        # the signed URL approaches expiration.
+        # Use the initial URL if provided (may be None)
         current_url = config.initial_stream_url
 
+        # If we have an initial URL and OBS is active, update OBS immediately.
+        if current_url and obs_updater:
+            log.info("Initial URL provided; sending to OBS.")
+            await obs_updater.update_stream_url(current_url)
+
+        # Main monitoring loop
         while not stop_event.is_set():
             try:
+                # If no URL, fetch one from the camera page
                 if not current_url:
                     log.info("No stream URL available; opening camera page.")
                     current_url = await browser.get_fresh_stream_url()
 
+                # If still no URL, wait and retry
                 if not current_url:
                     log.warning(
-                        "No .m3u8 request was captured. Retrying in %s seconds.",
+                        "No .m3u8 request captured. Retrying in %s seconds.",
                         config.retry_seconds,
                     )
                     await asyncio.sleep(config.retry_seconds)
@@ -63,9 +96,15 @@ async def main() -> None:
 
                 log.info("Using stream URL: %s", current_url)
 
+                # Update OBS with the new URL (with debug log)
+                if obs_updater:
+                    log.info("Sending updated URL to OBS source '%s'", config.obs_source_name)
+                    await obs_updater.update_stream_url(current_url)
+
+                # Launch VLC with the stream URL
                 player.start(current_url)
 
-                # Monitor VLC and the signed URL expiration.
+                # Monitor VLC process and URL expiration
                 reason = await player.monitor(
                     current_url=current_url,
                     stop_event=stop_event,
@@ -76,12 +115,14 @@ async def main() -> None:
                 if stop_event.is_set():
                     break
 
+                # VLC exited or URL expired – recover
                 log.info("VLC monitor requested recovery: %s", reason)
                 player.stop()
 
+                # Wait before trying to get a fresh URL
                 await asyncio.sleep(config.retry_seconds)
 
-                # Get a fresh signed URL from the normal web page.
+                # Fetch a new signed URL from the camera page
                 current_url = await browser.get_fresh_stream_url()
 
             except Exception:
@@ -94,9 +135,12 @@ async def main() -> None:
                 current_url = None
 
     finally:
+        # Clean up
         log.info("Stopping application.")
         player.stop()
         await browser.close()
+        if obs_updater:
+            await obs_updater.disconnect()
 
 
 if __name__ == "__main__":
