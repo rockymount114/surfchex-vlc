@@ -275,6 +275,10 @@ async def main() -> None:
                             source_name, text,
                             scroll=True,
                             scroll_speed=config.obs_tide_scroll_speed,
+                            extents=(
+                                config.obs_tide_scroll_width,
+                                config.obs_tide_scroll_height,
+                            ),
                         )
                     else:
                         await obs_updater.update_text_source(source_name, text)

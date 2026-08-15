@@ -329,45 +329,90 @@ class OBSUpdater:
         text: str,
         scroll: bool = False,
         scroll_speed: int = 30,
+        extents: Optional[tuple[int, int]] = None,
     ) -> None:
         """Create/update an OBS text (GDI+) source with the given text.
 
         The source is created automatically (and added to the current scene)
         when it does not exist.  Empty ``source_name`` disables the overlay.
         With ``scroll=True`` the text moves right-to-left (marquee) at
-        ``scroll_speed`` pixels per second — useful for long lines.
+        ``scroll_speed`` pixels per second.
+
+        OBS only *visibly* scrolls text that overflows a fixed-size box, so
+        when scrolling, ``extents`` (width, height) enables custom extents
+        narrower than the text; without scrolling the source auto-sizes.
+        GDI+ text stores the box size as ``extents_cx``/``extents_cy``,
+        FreeType as ``extents_w``/``extents_h`` — the keys are chosen from
+        the actual source kind.
         """
         if not source_name or not self.ws or not self.config.obs_enabled:
             return
+        kind = await self._get_source_kind(source_name)
+        settings = {
+            "text": text or "",
+            "scroll": bool(scroll),
+            "scroll_speed": int(scroll_speed),
+        }
+        if scroll and extents:
+            box_w_key, box_h_key = self._extents_keys(kind)
+            settings["extents"] = True
+            settings[box_w_key] = int(extents[0])
+            box_h = int(extents[1]) if len(extents) > 1 else 0
+            if box_h <= 0:
+                box_h = await self._estimate_text_height(source_name)
+            settings[box_h_key] = box_h
+        else:
+            settings["extents"] = False
         try:
             scene_name = await self._get_current_scene()
-            if await self._get_source_kind(source_name) is None:
+            if kind is None:
                 await self._create_input(
                     source_name,
                     await self._get_text_kind(),
-                    {"text": text or "", "scroll": scroll, "scroll_speed": int(scroll_speed)},
+                    settings,
                     scene_name,
                 )
             await self._ensure_source_in_scene(scene_name, source_name)
             await self._call(
                 obs_requests.SetInputSettings(
                     inputName=source_name,
-                    inputSettings={
-                        "text": text or "",
-                        "scroll": bool(scroll),
-                        "scroll_speed": int(scroll_speed),
-                    },
+                    inputSettings=settings,
                     overlay=True,
                 )
             )
             self.log.info(
                 "Updated text source '%s'%s: %s",
                 source_name,
-                " (scroll)" if scroll else "",
+                " (scroll %dx%d)" % (int(extents[0]), int(extents[1]))
+                if scroll and extents
+                else "",
                 (text or "").replace("\n", " / "),
             )
         except Exception as e:
             self.log.error("Failed to update text source '%s': %s", source_name, e)
+
+    async def _estimate_text_height(self, source_name: str) -> int:
+        """Estimate a box height that fits the source's current font size."""
+        size = 128
+        try:
+            response = await self._call(
+                obs_requests.GetInputSettings(inputName=source_name)
+            )
+            font = response.datain.get("inputSettings", {}).get("font") or {}
+            if font.get("size"):
+                size = int(font["size"])
+        except Exception:
+            pass
+        return max(60, int(size * 1.4))
+
+    @staticmethod
+    def _extents_keys(kind: Optional[str]) -> tuple[str, str]:
+        """Setting keys for the custom-extents box: GDI+ text uses
+        ``extents_cx``/``extents_cy``, FreeType text uses
+        ``extents_w``/``extents_h``."""
+        if kind and kind.startswith("text_ft2"):
+            return "extents_w", "extents_h"
+        return "extents_cx", "extents_cy"
 
     def _settings_for(self, kind: str, url: str) -> Optional[dict]:
         """Build the input settings for the URL, depending on the source kind."""

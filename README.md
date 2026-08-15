@@ -96,9 +96,16 @@ The "Tide" line can be long, so it scrolls right-to-left by default
 
 ```yaml
 obs:
-  tide_scroll: true    # false = static text
+  tide_scroll: true       # false = static text
   tide_scroll_speed: 30   # pixels per second
+  tide_scroll_width: 1920 # visible marquee window width
+  tide_scroll_height: 0   # 0 = auto-fit to the source font
 ```
+
+OBS only scrolls text that overflows a fixed-size box, so the Tide source is
+given custom extents (`tide_scroll_width` × height) — the text must be wider
+than the box to move.  Position the box in OBS (e.g. a banner along the
+bottom); the app does not move it.
 
 You may leave the current signed URL in:
 

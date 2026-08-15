@@ -140,14 +140,20 @@ obs:
   # Weather/tide are scraped from each camera page at most once per day.
   camera_location: true
   camera_weather: true
-  camera_tide: true
+  camera_tide: false
 
   # Scroll the "Tide" text right-to-left (marquee) because its line is long.
   # scroll_speed is in pixels per second; set tide_scroll: false for static text.
-  tide_scroll: false
+  # OBS only scrolls text that overflows a fixed-size box, so the Tide source
+  # gets custom extents of tide_scroll_width x tide_scroll_height. Height 0 =
+  # auto-fit to the source font. Position the box in OBS (e.g. a banner along
+  # the bottom of the canvas); the app does not move it.
+  tide_scroll: true
   tide_scroll_speed: 30
+  tide_scroll_width: 1280
+  tide_scroll_height: 0
 
   # Optional: force the OBS base (canvas) resolution on startup, e.g. to drop
   # GPU load from a 4K canvas down to 1080p (the video source is re-fitted to
   # the new canvas automatically). Leave "" to not touch OBS settings.
-  canvas_resolution: "1920x1080"
+  canvas_resolution: ""

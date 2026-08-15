@@ -39,6 +39,8 @@ class Config:
     obs_camera_tide: bool
     obs_tide_scroll: bool
     obs_tide_scroll_speed: int
+    obs_tide_scroll_width: int
+    obs_tide_scroll_height: int
     obs_canvas_width: int
     obs_canvas_height: int
 
@@ -174,6 +176,11 @@ def load_config(path: str | None = None) -> Config:
         obs_camera_tide=_as_bool(obs_data.get("camera_tide", True)),
         obs_tide_scroll=_as_bool(obs_data.get("tide_scroll", True)),
         obs_tide_scroll_speed=int(obs_data.get("tide_scroll_speed", 30)),
+        # OBS only visibly scrolls text that overflows a fixed-size box, so
+        # the Tide text gets custom extents when scrolling. Width from config;
+        # height 0 = auto-fit to the source's font size.
+        obs_tide_scroll_width=int(obs_data.get("tide_scroll_width", 1920)),
+        obs_tide_scroll_height=int(obs_data.get("tide_scroll_height", 0)),
         # optional: force the OBS base (canvas) resolution on startup,
         # e.g. "1920x1080" to drop GPU load from a 4K canvas; "" = leave OBS alone
         obs_canvas_width=canvas_w,
