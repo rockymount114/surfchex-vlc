@@ -267,11 +267,19 @@ class OBSUpdater:
             )
             return None
 
-    async def update_text_source(self, source_name: str, text: str) -> None:
+    async def update_text_source(
+        self,
+        source_name: str,
+        text: str,
+        scroll: bool = False,
+        scroll_speed: int = 30,
+    ) -> None:
         """Create/update an OBS text (GDI+) source with the given text.
 
         The source is created automatically (and added to the current scene)
         when it does not exist.  Empty ``source_name`` disables the overlay.
+        With ``scroll=True`` the text moves right-to-left (marquee) at
+        ``scroll_speed`` pixels per second — useful for long lines.
         """
         if not source_name or not self.ws or not self.config.obs_enabled:
             return
@@ -281,20 +289,25 @@ class OBSUpdater:
                 await self._create_input(
                     source_name,
                     await self._get_text_kind(),
-                    {"text": text or ""},
+                    {"text": text or "", "scroll": scroll, "scroll_speed": int(scroll_speed)},
                     scene_name,
                 )
             await self._ensure_source_in_scene(scene_name, source_name)
             await self._call(
                 obs_requests.SetInputSettings(
                     inputName=source_name,
-                    inputSettings={"text": text or ""},
+                    inputSettings={
+                        "text": text or "",
+                        "scroll": bool(scroll),
+                        "scroll_speed": int(scroll_speed),
+                    },
                     overlay=True,
                 )
             )
             self.log.info(
-                "Updated text source '%s': %s",
+                "Updated text source '%s'%s: %s",
                 source_name,
+                " (scroll)" if scroll else "",
                 (text or "").replace("\n", " / "),
             )
         except Exception as e:

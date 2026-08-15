@@ -91,6 +91,15 @@ always match the "Fishing Pier" video source.  Weather and tide are scraped
 from each camera page at most **once per day** (per camera, kept in memory),
 so the site is not hammered.
 
+The "Tide" line can be long, so it scrolls right-to-left by default
+(marquee).  Tune or disable it:
+
+```yaml
+obs:
+  tide_scroll: true    # false = static text
+  tide_scroll_speed: 30   # pixels per second
+```
+
 You may leave the current signed URL in:
 
 ```yaml

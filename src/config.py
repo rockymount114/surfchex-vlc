@@ -36,6 +36,8 @@ class Config:
     obs_camera_location: bool
     obs_camera_weather: bool
     obs_camera_tide: bool
+    obs_tide_scroll: bool
+    obs_tide_scroll_speed: int
 
     def camera_slugs(self) -> list[str]:
         """Ordered camera slugs to use.
@@ -157,6 +159,8 @@ def load_config(path: str | None = None) -> Config:
         obs_camera_location=_as_bool(obs_data.get("camera_location", True)),
         obs_camera_weather=_as_bool(obs_data.get("camera_weather", True)),
         obs_camera_tide=_as_bool(obs_data.get("camera_tide", True)),
+        obs_tide_scroll=_as_bool(obs_data.get("tide_scroll", True)),
+        obs_tide_scroll_speed=int(obs_data.get("tide_scroll_speed", 30)),
     )
     
     

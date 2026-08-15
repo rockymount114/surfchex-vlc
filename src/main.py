@@ -230,7 +230,12 @@ async def main() -> None:
             if config.obs_camera_weather:
                 await obs_updater.update_text_source(WEATHER_SOURCE, weather)
             if config.obs_camera_tide:
-                await obs_updater.update_text_source(TIDE_SOURCE, tide)
+                await obs_updater.update_text_source(
+                    TIDE_SOURCE,
+                    tide,
+                    scroll=config.obs_tide_scroll,
+                    scroll_speed=config.obs_tide_scroll_speed,
+                )
 
         # Use the initial URL if provided (may be None)
         current_url = config.initial_stream_url

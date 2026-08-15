@@ -133,6 +133,11 @@ obs:
   # "Location", "Weather" and "Tide" (created automatically if missing) in
   # sync with the active camera: the location name, the weather and the tide.
   # Weather/tide are scraped from each camera page at most once per day.
-  camera_location: true
+  camera_location: false
   camera_weather: true
-  camera_tide: true
+  camera_tide: false
+
+  # Scroll the "Tide" text right-to-left (marquee) because its line is long.
+  # scroll_speed is in pixels per second; set tide_scroll: false for static text.
+  tide_scroll: false
+  tide_scroll_speed: 30
