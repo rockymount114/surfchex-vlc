@@ -112,23 +112,9 @@ obs:
 The overlays are re-pushed on every camera change and URL refresh, so they
 always match the "Fishing Pier" video source.  Weather and tide are scraped
 from each camera page at most **once per day** (per camera, kept in memory),
-so the site is not hammered.
-
-The "Tide" line can be long, so it scrolls right-to-left by default
-(marquee).  Tune or disable it:
-
-```yaml
-obs:
-  tide_scroll: true       # false = static text
-  tide_scroll_speed: 30   # pixels per second
-  tide_scroll_width: 1920 # visible marquee window width
-  tide_scroll_height: 0   # 0 = auto-fit to the source font
-```
-
-OBS only scrolls text that overflows a fixed-size box, so the Tide source is
-given custom extents (`tide_scroll_width` × height) — the text must be wider
-than the box to move.  Position the box in OBS (e.g. a banner along the
-bottom); the app does not move it.
+so the site is not hammered.  All three text sources are static single lines;
+if a line is wider than the canvas (large font), reduce the font size in OBS
+or resize the source so it fits.
 
 You may leave the current signed URL in:
 

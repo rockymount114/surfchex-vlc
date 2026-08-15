@@ -38,10 +38,6 @@ class Config:
     obs_camera_location: bool
     obs_camera_weather: bool
     obs_camera_tide: bool
-    obs_tide_scroll: bool
-    obs_tide_scroll_speed: int
-    obs_tide_scroll_width: int
-    obs_tide_scroll_height: int
     obs_vlc_caching_ms: int
     obs_canvas_width: int
     obs_canvas_height: int
@@ -182,13 +178,6 @@ def load_config(path: str | None = None) -> Config:
         obs_camera_location=_as_bool(obs_data.get("camera_location", True)),
         obs_camera_weather=_as_bool(obs_data.get("camera_weather", True)),
         obs_camera_tide=_as_bool(obs_data.get("camera_tide", True)),
-        obs_tide_scroll=_as_bool(obs_data.get("tide_scroll", True)),
-        obs_tide_scroll_speed=int(obs_data.get("tide_scroll_speed", 30)),
-        # OBS only visibly scrolls text that overflows a fixed-size box, so
-        # the Tide text gets custom extents when scrolling. Width from config;
-        # height 0 = auto-fit to the source's font size.
-        obs_tide_scroll_width=int(obs_data.get("tide_scroll_width", 1920)),
-        obs_tide_scroll_height=int(obs_data.get("tide_scroll_height", 0)),
         # network cache (ms) for the OBS VLC source: lower = faster start after
         # each camera switch, slightly more risk of buffering on slow links.
         obs_vlc_caching_ms=int(obs_data.get("vlc_caching_ms", 500)),

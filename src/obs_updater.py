@@ -323,49 +323,18 @@ class OBSUpdater:
             )
             return None
 
-    async def update_text_source(
-        self,
-        source_name: str,
-        text: str,
-        scroll: bool = False,
-        scroll_speed: int = 30,
-        extents: Optional[tuple[int, int]] = None,
-    ) -> None:
+    async def update_text_source(self, source_name: str, text: str) -> None:
         """Create/update an OBS text (GDI+) source with the given text.
 
         The source is created automatically (and added to the current scene)
         when it does not exist.  Empty ``source_name`` disables the overlay.
-        With ``scroll=True`` the text moves right-to-left (marquee) at
-        ``scroll_speed`` pixels per second.
-
-        OBS only *visibly* scrolls text that overflows a fixed-size box, so
-        when scrolling, ``extents`` (width, height) enables custom extents
-        narrower than the text; without scrolling the source auto-sizes.
-        GDI+ text stores the box size as ``extents_cx``/``extents_cy``,
-        FreeType as ``extents_w``/``extents_h`` — the keys are chosen from
-        the actual source kind.
         """
         if not source_name or not self.ws or not self.config.obs_enabled:
             return
-        kind = await self._get_source_kind(source_name)
-        settings = {
-            "text": text or "",
-            "scroll": bool(scroll),
-            "scroll_speed": int(scroll_speed),
-        }
-        if scroll and extents:
-            box_w_key, box_h_key = self._extents_keys(kind)
-            settings["extents"] = True
-            settings[box_w_key] = int(extents[0])
-            box_h = int(extents[1]) if len(extents) > 1 else 0
-            if box_h <= 0:
-                box_h = await self._estimate_text_height(source_name)
-            settings[box_h_key] = box_h
-        else:
-            settings["extents"] = False
+        settings = {"text": text or ""}
         try:
             scene_name = await self._get_current_scene()
-            if kind is None:
+            if await self._get_source_kind(source_name) is None:
                 await self._create_input(
                     source_name,
                     await self._get_text_kind(),
@@ -381,38 +350,12 @@ class OBSUpdater:
                 )
             )
             self.log.info(
-                "Updated text source '%s'%s: %s",
+                "Updated text source '%s': %s",
                 source_name,
-                " (scroll %dx%d)" % (int(extents[0]), int(extents[1]))
-                if scroll and extents
-                else "",
                 (text or "").replace("\n", " / "),
             )
         except Exception as e:
             self.log.error("Failed to update text source '%s': %s", source_name, e)
-
-    async def _estimate_text_height(self, source_name: str) -> int:
-        """Estimate a box height that fits the source's current font size."""
-        size = 128
-        try:
-            response = await self._call(
-                obs_requests.GetInputSettings(inputName=source_name)
-            )
-            font = response.datain.get("inputSettings", {}).get("font") or {}
-            if font.get("size"):
-                size = int(font["size"])
-        except Exception:
-            pass
-        return max(60, int(size * 1.4))
-
-    @staticmethod
-    def _extents_keys(kind: Optional[str]) -> tuple[str, str]:
-        """Setting keys for the custom-extents box: GDI+ text uses
-        ``extents_cx``/``extents_cy``, FreeType text uses
-        ``extents_w``/``extents_h``."""
-        if kind and kind.startswith("text_ft2"):
-            return "extents_w", "extents_h"
-        return "extents_cx", "extents_cy"
 
     def _vlc_settings(self, url: str) -> dict:
         """VLC source settings: playlist plus a low network cache so each

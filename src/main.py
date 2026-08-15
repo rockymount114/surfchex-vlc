@@ -381,26 +381,15 @@ async def main() -> None:
             )
             overlays = []
             if config.obs_camera_location:
-                overlays.append((LOCATION_SOURCE, name, False))
+                overlays.append((LOCATION_SOURCE, name))
             if config.obs_camera_weather:
-                overlays.append((WEATHER_SOURCE, weather, False))
+                overlays.append((WEATHER_SOURCE, weather))
             if config.obs_camera_tide:
-                overlays.append((TIDE_SOURCE, tide, config.obs_tide_scroll))
+                overlays.append((TIDE_SOURCE, tide))
 
-            for source_name, text, scroll in overlays:
+            for source_name, text in overlays:
                 try:
-                    if scroll:
-                        await obs_updater.update_text_source(
-                            source_name, text,
-                            scroll=True,
-                            scroll_speed=config.obs_tide_scroll_speed,
-                            extents=(
-                                config.obs_tide_scroll_width,
-                                config.obs_tide_scroll_height,
-                            ),
-                        )
-                    else:
-                        await obs_updater.update_text_source(source_name, text)
+                    await obs_updater.update_text_source(source_name, text)
                 except Exception as e:
                     log.error("Overlay update failed for '%s': %s", source_name, e)
 
