@@ -33,6 +33,9 @@ class Config:
     obs_port: int
     obs_password: str
     obs_source_name: str
+    obs_camera_location: bool
+    obs_camera_weather: bool
+    obs_camera_tide: bool
 
     def camera_slugs(self) -> list[str]:
         """Ordered camera slugs to use.
@@ -150,6 +153,10 @@ def load_config(path: str | None = None) -> Config:
         obs_port=int(obs_data.get("port", 4455)),
         obs_password=_expand(obs_data.get("password", "")),
         obs_source_name=obs_data.get("source_name", "SurfChex Stream"),
+        # text overlay toggles (OBS source names are fixed: Location / Weather / Tide)
+        obs_camera_location=_as_bool(obs_data.get("camera_location", True)),
+        obs_camera_weather=_as_bool(obs_data.get("camera_weather", True)),
+        obs_camera_tide=_as_bool(obs_data.get("camera_tide", True)),
     )
     
     

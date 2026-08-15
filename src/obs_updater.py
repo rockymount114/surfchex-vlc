@@ -4,6 +4,11 @@ from typing import Optional
 import obswebsocket
 from obswebsocket import requests as obs_requests
 
+# OBS text sources used for the overlays (fixed names).
+LOCATION_SOURCE = "Location"
+WEATHER_SOURCE = "Weather"
+TIDE_SOURCE = "Tide"
+
 
 class OBSUpdater:
     """Keeps a VLC Video Source (or Media Source) in OBS playing the current URL.
@@ -18,11 +23,13 @@ class OBSUpdater:
 
     VLC_KIND = "vlc_source"
     MEDIA_KIND = "ffmpeg_source"
+    TEXT_KIND_FALLBACK = "text_gdiplus_v3"
 
     def __init__(self, config):
         self.config = config
         self.log = logging.getLogger("surfchex.obs")
         self.ws: Optional[obswebsocket.obsws] = None
+        self._text_kind: Optional[str] = None
 
     async def connect(self):
         if not self.config.obs_enabled:
@@ -59,46 +66,78 @@ class OBSUpdater:
             self.log.error("Could not get current program scene: %s", e)
             return None
 
-    async def _get_source_kind(self) -> Optional[str]:
-        """Return the input kind of the configured source, or None if it does not exist."""
+    async def _get_source_kind(self, source_name: Optional[str] = None) -> Optional[str]:
+        """Return the input kind of a source, or None if it does not exist."""
+        source_name = source_name or self.config.obs_source_name
         try:
             response = await self._call(
-                obs_requests.GetInputSettings(inputName=self.config.obs_source_name)
+                obs_requests.GetInputSettings(inputName=source_name)
             )
             return response.datain.get("inputKind")
         except Exception:
             return None
 
-    async def _create_vlc_source(self, url: str, scene_name: Optional[str]) -> bool:
-        """Create a VLC Video Source (optionally inside the current scene)."""
+    async def _create_input(
+        self,
+        source_name: str,
+        input_kind: str,
+        input_settings: dict,
+        scene_name: Optional[str] = None,
+    ) -> bool:
+        """Create an input (optionally inside the current scene)."""
         try:
             kwargs = {
-                "inputName": self.config.obs_source_name,
-                "inputKind": self.VLC_KIND,
-                "inputSettings": {"playlist": [{"value": url}]},
-                "sceneItemEnabled": True,
+                "inputName": source_name,
+                "inputKind": input_kind,
+                "inputSettings": input_settings,
             }
+            # Newer OBS versions require sceneName whenever sceneItemEnabled
+            # is set, so only request a scene item when we know the scene.
             if scene_name:
                 kwargs["sceneName"] = scene_name
+                kwargs["sceneItemEnabled"] = True
 
             response = await self._call(obs_requests.CreateInput(**kwargs))
             self.log.info(
-                "Created VLC Video Source '%s'%s (scene item ID=%s).",
-                self.config.obs_source_name,
+                "Created %s source '%s'%s (scene item ID=%s).",
+                input_kind,
+                source_name,
                 " in scene '%s'" % scene_name if scene_name else "",
                 response.datain.get("sceneItemId"),
             )
             return True
         except Exception as e:
             self.log.error(
-                "Failed to create VLC Video Source '%s': %s",
-                self.config.obs_source_name,
+                "Failed to create %s source '%s': %s",
+                input_kind,
+                source_name,
                 e,
             )
             return False
 
+    async def _get_text_kind(self) -> str:
+        """Return a usable OBS text-source input kind (detected once)."""
+        if self._text_kind is None:
+            try:
+                response = await self._call(obs_requests.GetInputKindList())
+                kinds = response.datain.get("inputKinds", [])
+                for preferred in (
+                    "text_gdiplus_v3",
+                    "text_gdiplus_v2",
+                    "text_ft2_source_v2",
+                ):
+                    if preferred in kinds:
+                        self._text_kind = preferred
+                        break
+            except Exception:
+                pass
+            if self._text_kind is None:
+                self._text_kind = self.TEXT_KIND_FALLBACK
+            self.log.info("Using OBS text source kind: %s", self._text_kind)
+        return self._text_kind
+
     async def _ensure_source(self, url: str, scene_name: Optional[str]):
-        """Ensure the source exists; create it when missing.
+        """Ensure the video source exists; create it when missing.
 
         Returns ``(exists, kind, created)`` where ``kind`` is the OBS input
         kind and ``created`` is True when this call created the source.
@@ -116,7 +155,12 @@ class OBSUpdater:
             "Source '%s' not found in OBS. Creating a new VLC Video Source.",
             self.config.obs_source_name,
         )
-        if not await self._create_vlc_source(url, scene_name):
+        if not await self._create_input(
+            self.config.obs_source_name,
+            self.VLC_KIND,
+            {"playlist": [{"value": url}]},
+            scene_name,
+        ):
             return False, None, False
         return True, self.VLC_KIND, True
 
@@ -153,11 +197,20 @@ class OBSUpdater:
         except Exception as e:
             self.log.warning("Could not fit source to canvas: %s", e)
 
-    async def _ensure_source_in_scene(self, scene_name: Optional[str]) -> Optional[int]:
-        """Ensure the source is in the scene and visible.
+    async def _ensure_source_in_scene(
+        self,
+        scene_name: Optional[str],
+        source_name: Optional[str] = None,
+        fit_if_new: bool = False,
+    ) -> Optional[int]:
+        """Ensure a source is in the scene and visible.
+
+        When ``fit_if_new`` is True and the item was just added, it is
+        centered and scaled to fit the canvas (used for video sources).
 
         Returns the scene item ID, or None if it could not be ensured.
         """
+        source_name = source_name or self.config.obs_source_name
         if not scene_name:
             return None
 
@@ -166,7 +219,7 @@ class OBSUpdater:
             response = await self._call(
                 obs_requests.GetSceneItemId(
                     sceneName=scene_name,
-                    sourceName=self.config.obs_source_name,
+                    sourceName=source_name,
                 )
             )
             item_id = response.datain.get("sceneItemId")
@@ -179,7 +232,7 @@ class OBSUpdater:
             )
             self.log.info(
                 "Source '%s' is in scene '%s' (ID=%s); visibility ensured.",
-                self.config.obs_source_name,
+                source_name,
                 scene_name,
                 item_id,
             )
@@ -191,26 +244,61 @@ class OBSUpdater:
             response = await self._call(
                 obs_requests.CreateSceneItem(
                     sceneName=scene_name,
-                    sourceName=self.config.obs_source_name,
+                    sourceName=source_name,
                     sceneItemEnabled=True,
                 )
             )
             item_id = response.datain.get("sceneItemId")
             self.log.info(
                 "Added source '%s' to scene '%s' (new ID=%s).",
-                self.config.obs_source_name,
+                source_name,
                 scene_name,
                 item_id,
             )
+            if fit_if_new:
+                await self._fit_item_to_canvas(scene_name, item_id)
             return item_id
         except Exception as e:
             self.log.error(
                 "Failed to add source '%s' to scene '%s': %s",
-                self.config.obs_source_name,
+                source_name,
                 scene_name,
                 e,
             )
             return None
+
+    async def update_text_source(self, source_name: str, text: str) -> None:
+        """Create/update an OBS text (GDI+) source with the given text.
+
+        The source is created automatically (and added to the current scene)
+        when it does not exist.  Empty ``source_name`` disables the overlay.
+        """
+        if not source_name or not self.ws or not self.config.obs_enabled:
+            return
+        try:
+            scene_name = await self._get_current_scene()
+            if await self._get_source_kind(source_name) is None:
+                await self._create_input(
+                    source_name,
+                    await self._get_text_kind(),
+                    {"text": text or ""},
+                    scene_name,
+                )
+            await self._ensure_source_in_scene(scene_name, source_name)
+            await self._call(
+                obs_requests.SetInputSettings(
+                    inputName=source_name,
+                    inputSettings={"text": text or ""},
+                    overlay=True,
+                )
+            )
+            self.log.info(
+                "Updated text source '%s': %s",
+                source_name,
+                (text or "").replace("\n", " / "),
+            )
+        except Exception as e:
+            self.log.error("Failed to update text source '%s': %s", source_name, e)
 
     def _settings_for(self, kind: str, url: str) -> Optional[dict]:
         """Build the input settings for the URL, depending on the source kind."""
@@ -234,12 +322,7 @@ class OBSUpdater:
                 )
                 return
 
-            item_id = await self._ensure_source_in_scene(scene_name)
-
-            # Newly created sources have a default top-left, 1:1 transform;
-            # fit them to the canvas so they are immediately visible.
-            if created and item_id is not None and scene_name:
-                await self._fit_item_to_canvas(scene_name, item_id)
+            await self._ensure_source_in_scene(scene_name, fit_if_new=created)
 
             settings = self._settings_for(kind, url)
             if settings is None:

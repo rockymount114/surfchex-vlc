@@ -11,9 +11,15 @@ from vlc import VLCPlayer
 
 # Try to import OBSUpdater; if missing, disable OBS integration.
 try:
-    from obs_updater import OBSUpdater
+    from obs_updater import (
+        OBSUpdater,
+        LOCATION_SOURCE,
+        WEATHER_SOURCE,
+        TIDE_SOURCE,
+    )
 except ImportError:
     OBSUpdater = None
+    LOCATION_SOURCE = WEATHER_SOURCE = TIDE_SOURCE = None
     logging.warning("OBSUpdater could not be imported. OBS integration disabled.")
 
 
@@ -59,6 +65,64 @@ async def _fetch_fresh_url(
             )
             cycle_index = (cycle_index + 1) % len(camera_slugs)
     return None, cycle_index
+
+
+def _clean_text(value) -> Optional[str]:
+    """Return stripped value, or None for empty / '--' placeholder values."""
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text or "--" in text:
+        return None
+    return text
+
+
+def _format_weather(w: dict) -> str:
+    """One-line weather summary for the OBS text overlay."""
+    parts = []
+    title = _clean_text(w.get("title"))
+    if title:
+        parts.append(title)
+    temp = []
+    if _clean_text(w.get("temp")):
+        temp.append(w["temp"].strip())
+    if _clean_text(w.get("feels")):
+        temp.append("feels %s°" % w["feels"].strip())
+    if temp:
+        parts.append(" ".join(temp))
+    if _clean_text(w.get("windDir")) or _clean_text(w.get("wind")):
+        parts.append(
+            "Wind %s %s mph"
+            % (w.get("windDir", "").strip(), w.get("wind", "").strip())
+        )
+    if _clean_text(w.get("gusts")):
+        parts.append("Gusts %s mph" % w["gusts"].strip())
+    if _clean_text(w.get("humidity")):
+        parts.append("Humidity %s" % w["humidity"].strip())
+    if _clean_text(w.get("pressure")):
+        parts.append("Pressure %s" % w["pressure"].strip())
+    if _clean_text(w.get("dew")):
+        parts.append("Dew %s" % w["dew"].strip())
+    if _clean_text(w.get("rain")):
+        parts.append("Rain %s" % w["rain"].strip())
+    return " | ".join(parts) or "Weather unavailable"
+
+
+def _format_tide(t: dict) -> str:
+    """One-line tide summary for the OBS text overlay."""
+    parts = []
+    if _clean_text(t.get("now")):
+        parts.append(t["now"].strip())
+    if _clean_text(t.get("nextEvent")):
+        nxt = t["nextEvent"].strip()
+        if _clean_text(t.get("nextHeight")):
+            nxt = "%s (%s)" % (nxt, t["nextHeight"].strip())
+        parts.append(nxt)
+    if _clean_text(t.get("station")):
+        parts.append(t["station"].strip())
+    if _clean_text(t.get("stationMeta")):
+        parts.append(t["stationMeta"].strip())
+    return " | ".join(parts) or "Tide unavailable"
 
 
 async def main() -> None:
@@ -126,6 +190,48 @@ async def main() -> None:
 
         cycle_index = 0
 
+        # Scraped site info cache: slug -> {"date": "YYYY-MM-DD", "info": {...}}.
+        # Camera name / weather / tide are only re-scraped once per day per camera.
+        site_info_cache: dict[str, dict] = {}
+
+        async def camera_info(slug: str) -> dict:
+            """Camera name + weather + tide for a slug (cached once per day)."""
+            today = time.strftime("%Y-%m-%d")
+            cached = site_info_cache.get(slug)
+            if cached and cached.get("date") == today:
+                return cached["info"]
+            log.info("Scraping camera info for '%s'...", slug)
+            info = await browser.scrape_camera_info() or {}
+            if not info.get("name"):
+                info["name"] = slug
+            site_info_cache[slug] = {"date": today, "info": info}
+            return info
+
+        async def update_overlays(slug: str) -> None:
+            """Push camera name / weather / tide to the OBS text sources.
+
+            Runs on every camera change / URL refresh so the overlays always
+            match the source currently shown in OBS.  Each overlay can be
+            switched off in config.yaml (camera_location / camera_weather /
+            camera_tide).
+            """
+            if not obs_updater:
+                return
+            info = await camera_info(slug)
+            name = info.get("name") or slug
+            weather = _format_weather(info.get("weather") or {})
+            tide = _format_tide(info.get("tide") or {})
+            log.info(
+                "Overlay for '%s': name='%s' weather='%s' tide='%s'",
+                slug, name, weather, tide,
+            )
+            if config.obs_camera_location:
+                await obs_updater.update_text_source(LOCATION_SOURCE, name)
+            if config.obs_camera_weather:
+                await obs_updater.update_text_source(WEATHER_SOURCE, weather)
+            if config.obs_camera_tide:
+                await obs_updater.update_text_source(TIDE_SOURCE, tide)
+
         # Use the initial URL if provided (may be None)
         current_url = config.initial_stream_url
 
@@ -167,6 +273,11 @@ async def main() -> None:
                 if obs_updater:
                     log.info("Sending updated URL to OBS source '%s'", config.obs_source_name)
                     await obs_updater.update_stream_url(current_url)
+
+                # Update the OBS text overlays for the active camera
+                # (camera name / weather / tide, scraped at most once a day).
+                if camera_slugs:
+                    await update_overlays(camera_slugs[cycle_index])
 
                 # Launch VLC with the stream URL (no-op when vlc_player=false)
                 player.start(current_url)

@@ -73,6 +73,24 @@ camera_cycle_seconds: 600   # switch to the next camera every 10 minutes
 The rotation starts at the default camera and skips any camera that produces
 no stream.
 
+### OBS overlays (camera name / weather / tide)
+
+The app keeps three OBS **text sources** in sync with the active camera —
+`Location` (camera name), `Weather`, and `Tide` — created automatically if
+missing.  Each can be switched on/off:
+
+```yaml
+obs:
+  camera_location: true   # update OBS text source "Location" with the camera name
+  camera_weather: true    # update OBS text source "Weather" with temp/wind/humidity
+  camera_tide: true       # update OBS text source "Tide" with current/next tide
+```
+
+The overlays are re-pushed on every camera change and URL refresh, so they
+always match the "Fishing Pier" video source.  Weather and tide are scraped
+from each camera page at most **once per day** (per camera, kept in memory),
+so the site is not hammered.
+
 You may leave the current signed URL in:
 
 ```yaml

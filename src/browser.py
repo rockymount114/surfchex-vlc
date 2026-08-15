@@ -132,6 +132,72 @@ class StreamBrowser:
         finally:
             self.page.remove_listener("request", on_request)
 
+    async def scrape_camera_info(self) -> dict:
+        """Extract the camera name, weather and tide from the loaded page.
+
+        Values are raw DOM text; missing widgets become None.  Waits until the
+        weather/tide widgets are filled in by the page's JS (they start with
+        "--" placeholders), so the scrape does not catch the loading state.
+        """
+        # Weather: wait until the temperature shows a real value (not "--").
+        try:
+            await self.page.wait_for_function(
+                """() => {
+                    const el = document.querySelector('#wc-temp');
+                    return el && el.textContent.trim() && !el.textContent.includes('--');
+                }""",
+                timeout=15000,
+            )
+        except Exception:
+            pass  # widget missing/hidden -> evaluate returns None
+        # Tide: wait until the "now" line is populated.
+        try:
+            await self.page.wait_for_function(
+                """() => {
+                    const el = document.querySelector('#tide-now');
+                    return el && el.textContent.trim().length > 0;
+                }""",
+                timeout=10000,
+            )
+        except Exception:
+            pass
+
+        try:
+            return await self.page.evaluate(
+                """() => {
+                    const txt = (sel) => {
+                        const el = document.querySelector(sel);
+                        return el ? el.textContent.trim() : null;
+                    };
+                    const active = document.querySelector('#camera-list .cam-btn.active');
+                    return {
+                        name: active ? (active.textContent || '').trim() : null,
+                        weather: {
+                            title: txt('.wc-title'),
+                            temp: txt('#wc-temp'),
+                            feels: txt('#wc-feels'),
+                            windDir: txt('#wc-wind-dir-txt'),
+                            wind: txt('#wc-wind-val'),
+                            gusts: txt('#wc-gusts'),
+                            humidity: txt('#wcx-hum'),
+                            pressure: txt('#wcx-press'),
+                            dew: txt('#wcx-dew'),
+                            rain: txt('#wcx-rain'),
+                        },
+                        tide: {
+                            station: txt('#tide-station-name'),
+                            stationMeta: txt('#tide-station-meta'),
+                            now: txt('#tide-now'),
+                            nextEvent: txt('#tide-next-event'),
+                            nextHeight: txt('#tide-next-height'),
+                        }
+                    };
+                }"""
+            )
+        except Exception as e:
+            self.log.warning("Could not scrape camera info: %s", e)
+            return {}
+
     async def refresh_and_get_stream_url(self, page_url: Optional[str] = None) -> Optional[str]:
         if not self.page:
             raise RuntimeError("Playwright browser is not started.")
