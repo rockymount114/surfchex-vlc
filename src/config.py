@@ -33,6 +33,7 @@ class Config:
     obs_host: str
     obs_port: int
     obs_password: str
+    obs_path: str
     obs_source_name: str
     obs_camera_location: bool
     obs_camera_weather: bool
@@ -41,6 +42,7 @@ class Config:
     obs_tide_scroll_speed: int
     obs_tide_scroll_width: int
     obs_tide_scroll_height: int
+    obs_vlc_caching_ms: int
     obs_canvas_width: int
     obs_canvas_height: int
 
@@ -169,6 +171,12 @@ def load_config(path: str | None = None) -> Config:
         obs_host=_expand(obs_data.get("host", "localhost")),
         obs_port=int(obs_data.get("port", 4455)),
         obs_password=_expand(obs_data.get("password", "")),
+        # OBS Studio executable, used to auto-start OBS if it is not running
+        # (the app asks Y/n first). "" = never auto-start.
+        obs_path=_expand(obs_data.get(
+            "obs_path",
+            r"C:\Program Files\obs-studio\bin\64bit\obs64.exe",
+        )),
         obs_source_name=obs_data.get("source_name", "SurfChex Stream"),
         # text overlay toggles (OBS source names are fixed: Location / Weather / Tide)
         obs_camera_location=_as_bool(obs_data.get("camera_location", True)),
@@ -181,6 +189,9 @@ def load_config(path: str | None = None) -> Config:
         # height 0 = auto-fit to the source's font size.
         obs_tide_scroll_width=int(obs_data.get("tide_scroll_width", 1920)),
         obs_tide_scroll_height=int(obs_data.get("tide_scroll_height", 0)),
+        # network cache (ms) for the OBS VLC source: lower = faster start after
+        # each camera switch, slightly more risk of buffering on slow links.
+        obs_vlc_caching_ms=int(obs_data.get("vlc_caching_ms", 500)),
         # optional: force the OBS base (canvas) resolution on startup,
         # e.g. "1920x1080" to drop GPU load from a 4K canvas; "" = leave OBS alone
         obs_canvas_width=canvas_w,

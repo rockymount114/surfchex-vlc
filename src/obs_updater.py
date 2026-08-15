@@ -158,7 +158,7 @@ class OBSUpdater:
         if not await self._create_input(
             self.config.obs_source_name,
             self.VLC_KIND,
-            {"playlist": [{"value": url}]},
+            self._vlc_settings(url),
             scene_name,
         ):
             return False, None, False
@@ -414,10 +414,18 @@ class OBSUpdater:
             return "extents_w", "extents_h"
         return "extents_cx", "extents_cy"
 
+    def _vlc_settings(self, url: str) -> dict:
+        """VLC source settings: playlist plus a low network cache so each
+        camera switch starts playing faster."""
+        return {
+            "playlist": [{"value": url}],
+            "network_caching": int(getattr(self.config, "obs_vlc_caching_ms", 500)),
+        }
+
     def _settings_for(self, kind: str, url: str) -> Optional[dict]:
         """Build the input settings for the URL, depending on the source kind."""
         if kind == self.VLC_KIND:
-            return {"playlist": [{"value": url}]}
+            return self._vlc_settings(url)
         if kind == self.MEDIA_KIND:
             return {"input": url, "is_local_file": False}
         return None

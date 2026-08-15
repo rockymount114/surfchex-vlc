@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import os
 import signal
+import subprocess
 import time
 from pathlib import Path
 from typing import Optional
@@ -75,6 +77,141 @@ def _clean_text(value) -> Optional[str]:
     if not text or "--" in text:
         return None
     return text
+
+
+async def _camera_info(browser, config, slug: str, cache: dict, log) -> dict:
+    """Camera name + weather + tide for a slug, scraped at most once per day.
+
+    ``cache`` maps slug -> {"date": "YYYY-MM-DD", "info": {...}}.
+    """
+    today = time.strftime("%Y-%m-%d")
+    cached = cache.get(slug)
+    if cached and cached.get("date") == today:
+        return cached["info"]
+    log.info("Scraping camera info for '%s'...", slug)
+    info = await browser.scrape_camera_info() or {}
+    if not info.get("name"):
+        info["name"] = slug
+    cache[slug] = {"date": today, "info": info}
+    return info
+
+
+def _is_obs_running() -> bool:
+    """Return True if an OBS Studio process is running (Windows)."""
+    if os.name != "nt":
+        return False
+    for image in ("obs64.exe", "obs.exe"):
+        try:
+            result = subprocess.run(
+                ["tasklist", "/NH", "/FI", "IMAGENAME eq " + image],
+                capture_output=True,
+                timeout=10,
+            )
+            if image.encode() in result.stdout.lower():
+                return True
+        except Exception:
+            return False
+    return False
+
+
+def _ask_start_obs() -> bool:
+    """Ask the user whether to start OBS.  Returns True to start it."""
+    while True:
+        try:
+            answer = input("OBS is not running. Start OBS now? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        if answer in ("", "y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            return False
+        print("Please answer y or n.")
+
+
+def _start_obs(config) -> bool:
+    """Launch OBS Studio.  Returns True when the process was started.
+
+    OBS must run with its own directory as the working directory, otherwise
+    it fails with 'Failed to find locale/en-US.ini' (it locates its data
+    files relative to the launch directory).
+    """
+    path = config.obs_path
+    if not path or not os.path.exists(path):
+        logging.getLogger("surfchex").warning(
+            "OBS executable not found at '%s' — cannot start it.", path,
+        )
+        return False
+    try:
+        subprocess.Popen([path], cwd=os.path.dirname(path))
+        logging.getLogger("surfchex").info("Started OBS: %s", path)
+        return True
+    except Exception as e:
+        logging.getLogger("surfchex").error("Failed to start OBS: %s", e)
+        return False
+
+
+async def _wait_for_port(host: str, port: int, timeout: float = 60.0) -> bool:
+    """Wait until a TCP connection to host:port succeeds (OBS starting up)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            reader, writer = await asyncio.open_connection(host, port)
+            writer.close()
+            await writer.wait_closed()
+            return True
+        except OSError:
+            await asyncio.sleep(2)
+    return False
+
+
+async def _connect_obs(config, log):
+    """Connect to OBS; if it is not running, ask the user whether to start it.
+
+    Returns the connected OBSUpdater, or None to continue without OBS.
+    """
+    updater = OBSUpdater(config)
+    try:
+        await updater.connect()
+    except Exception as e:
+        log.warning("Failed to connect to OBS WebSocket: %s. OBS updates disabled.", e)
+        return None
+    if updater.ws is not None:
+        log.info("OBS WebSocket connected successfully.")
+        return updater
+
+    # OBS is not reachable over WebSocket.
+    if _is_obs_running():
+        log.warning(
+            "OBS appears to be running, but its WebSocket server is not reachable "
+            "on %s:%s. Is the WebSocket server enabled? Continuing without OBS.",
+            config.obs_host, config.obs_port,
+        )
+        return None
+
+    if not _ask_start_obs():
+        log.info("Continuing without OBS integration.")
+        return None
+
+    if not _start_obs(config):
+        log.warning("OBS could not be started. Continuing without OBS integration.")
+        return None
+
+    log.info("Waiting for OBS to start (up to 60 s)...")
+    if not await _wait_for_port(config.obs_host, config.obs_port, timeout=60):
+        log.warning("OBS did not start in time. Continuing without OBS integration.")
+        return None
+
+    # The port is up; give the WebSocket server a moment, then connect.
+    for _ in range(5):
+        await updater.connect()
+        if updater.ws is not None:
+            break
+        await asyncio.sleep(1)
+    if updater.ws is None:
+        log.warning("Could not connect to OBS WebSocket. Continuing without OBS integration.")
+        return None
+    log.info("OBS WebSocket connected successfully.")
+    return updater
 
 
 def _format_weather(w: dict) -> str:
@@ -174,20 +311,11 @@ async def main() -> None:
     browser = StreamBrowser(config)
     player = VLCPlayer(config)
 
-    # Initialise OBS updater (optional)
+    # Initialise OBS updater (optional).  If OBS is not running, the user is
+    # asked whether to start it; the app continues either way.
     obs_updater = None
     if config.obs_enabled and OBSUpdater is not None:
-        try:
-            obs_updater = OBSUpdater(config)
-            await obs_updater.connect()
-            if obs_updater.ws is not None:
-                log.info("OBS WebSocket connected successfully.")
-            else:
-                log.warning("OBS WebSocket connection failed (ws is None).")
-                obs_updater = None
-        except Exception as e:
-            log.warning("Failed to connect to OBS WebSocket: %s. OBS updates disabled.", e)
-            obs_updater = None
+        obs_updater = await _connect_obs(config, log)
     elif config.obs_enabled:
         log.warning("OBS integration enabled in config, but OBSUpdater is not available.")
 
@@ -231,16 +359,7 @@ async def main() -> None:
 
         async def camera_info(slug: str) -> dict:
             """Camera name + weather + tide for a slug (cached once per day)."""
-            today = time.strftime("%Y-%m-%d")
-            cached = site_info_cache.get(slug)
-            if cached and cached.get("date") == today:
-                return cached["info"]
-            log.info("Scraping camera info for '%s'...", slug)
-            info = await browser.scrape_camera_info() or {}
-            if not info.get("name"):
-                info["name"] = slug
-            site_info_cache[slug] = {"date": today, "info": info}
-            return info
+            return await _camera_info(browser, config, slug, site_info_cache, log)
 
         async def update_overlays(slug: str) -> None:
             """Push camera name / weather / tide to the OBS text sources.
@@ -285,6 +404,42 @@ async def main() -> None:
                 except Exception as e:
                     log.error("Overlay update failed for '%s': %s", source_name, e)
 
+        # --- Prefetch the NEXT camera while the current one plays, so camera
+        # switches are instant (the URL + info are already fetched and only
+        # pushed to OBS at the rotation tick). ---
+        prefetch_task: Optional[asyncio.Task] = None
+        prefetched: dict = {}
+
+        async def prefetch_camera(slug: str) -> None:
+            """Fetch URL + info for a camera in the background; park the page
+            afterwards so the browser stays idle until the next switch."""
+            nonlocal prefetched
+            try:
+                url, _ = await _fetch_fresh_url(browser, config, [slug], 0)
+                if not url:
+                    log.warning("Prefetch: camera '%s' produced no stream.", slug)
+                    return
+                await camera_info(slug)  # scrapes now, cached for the day
+                await browser.park_page()
+                prefetched = {"slug": slug, "url": url}
+                log.info("Prefetched camera '%s' (ready to switch).", slug)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log.warning("Prefetch failed for camera '%s': %s", slug, e)
+
+        def start_prefetch(slug: str) -> None:
+            nonlocal prefetch_task, prefetched
+            if prefetch_task and not prefetch_task.done():
+                prefetch_task.cancel()
+            prefetched = {}
+            prefetch_task = asyncio.create_task(prefetch_camera(slug))
+
+        def cancel_prefetch() -> None:
+            nonlocal prefetch_task
+            if prefetch_task and not prefetch_task.done():
+                prefetch_task.cancel()
+
         # Use the initial URL if provided (may be None)
         current_url = config.initial_stream_url
 
@@ -301,6 +456,7 @@ async def main() -> None:
             try:
                 # If no URL, fetch one from the camera page
                 if not current_url:
+                    cancel_prefetch()
                     log.info("No stream URL available; opening camera page.")
                     fetch_start = time.monotonic()
                     current_url, cycle_index = await _fetch_fresh_url(
@@ -341,6 +497,13 @@ async def main() -> None:
                 # Launch VLC with the stream URL (no-op when vlc_player=false)
                 player.start(current_url)
 
+                # Background-prefetch the NEXT camera so the next switch is
+                # instant (URL + info ready before the rotation tick).
+                if len(camera_slugs) > 1:
+                    start_prefetch(
+                        camera_slugs[(cycle_index + 1) % len(camera_slugs)]
+                    )
+
                 # Refresh early enough that OBS never runs out of a valid URL:
                 # at least the configured margin, and at least twice the time
                 # the last fetch took, plus 30 s of slack.
@@ -362,17 +525,29 @@ async def main() -> None:
                     ),
                 )
 
+                # The prefetch served its purpose (or it is moot now) — stop it
+                # before acting on the monitor result.
+                cancel_prefetch()
+
                 if stop_event.is_set():
                     break
 
                 if reason == "rotate":
-                    # Time to move to the next camera.
+                    # Time to move to the next camera.  Use the prefetched URL
+                    # when it is ready; otherwise fall back to a live fetch.
                     cycle_index = (cycle_index + 1) % len(camera_slugs)
+                    next_slug = camera_slugs[cycle_index]
                     log.info(
                         "Switching to camera '%s' (%s).",
-                        camera_slugs[cycle_index],
-                        config.camera_page_for(camera_slugs[cycle_index]),
+                        next_slug,
+                        config.camera_page_for(next_slug),
                     )
+                    if prefetched.get("slug") == next_slug:
+                        current_url = prefetched["url"]
+                        prefetched = {}
+                        continue  # update OBS + re-monitor in the next iteration
+
+                    log.info("Prefetched URL not ready; fetching now.")
                     fetch_start = time.monotonic()
                     fresh_url, cycle_index = await _fetch_fresh_url(
                         browser, config, camera_slugs, cycle_index
@@ -418,6 +593,7 @@ async def main() -> None:
                     "Main loop error. Retrying in %s seconds.",
                     config.retry_seconds,
                 )
+                cancel_prefetch()
                 player.stop()
                 await asyncio.sleep(config.retry_seconds)
                 current_url = None

@@ -73,6 +73,20 @@ camera_cycle_seconds: 600   # switch to the next camera every 10 minutes
 The rotation starts at the default camera and skips any camera that produces
 no stream.
 
+### Smooth camera rotation
+
+While one camera plays, the app **prefetches the next camera's URL** in the
+background, so switching is instant when the rotation timer fires.  The OBS
+VLC source also uses a low network cache so each new camera starts playing
+quickly:
+
+```yaml
+camera_cycle_seconds: 60     # switch cameras every 60 s
+monitor_interval_seconds: 2  # how often the rotation timer is checked
+obs:
+  vlc_caching_ms: 500        # OBS VLC network cache; lower = faster switch start
+```
+
 ### OBS overlays (camera name / weather / tide)
 
 The app keeps three OBS **text sources** in sync with the active camera —
@@ -84,6 +98,15 @@ obs:
   camera_location: true   # update OBS text source "Location" with the camera name
   camera_weather: true    # update OBS text source "Weather" with temp/wind/humidity
   camera_tide: true       # update OBS text source "Tide" with current/next tide
+```
+
+If OBS is not running when the app starts, it asks **"OBS is not running.
+Start OBS now? [Y/n]"** — answer Y to launch it (via `obs_path` below) and
+wait for it, or n to continue without OBS integration:
+
+```yaml
+obs:
+  obs_path: "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"  # "" = never auto-start
 ```
 
 The overlays are re-pushed on every camera change and URL refresh, so they

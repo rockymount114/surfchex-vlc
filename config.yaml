@@ -64,7 +64,7 @@ camera: "scpierend"
 # Loop through ALL cameras? 0 = stay on 'camera' only.
 # Set e.g. 600 to automatically switch to the next camera every 10 minutes
 # (starts at the default camera, skips cameras that produce no stream).
-camera_cycle_seconds: 10
+camera_cycle_seconds: 60
 
 # Optional initial URL. It can be the currently valid signed URL.
 # If it expires, Playwright obtains a new one from the active camera page.
@@ -104,8 +104,9 @@ refresh_before_seconds: 120
 # Wait between recovery attempts.
 retry_seconds: 10
 
-# VLC process monitoring interval.
-monitor_interval_seconds: 5
+# VLC process monitoring interval. Lower = more precise camera-switch timing
+# (e.g. 2 s checks the 60 s rotation every 2 s); cost is negligible.
+monitor_interval_seconds: 2
 
 page_timeout_seconds: 60
 capture_timeout_seconds: 45
@@ -131,8 +132,16 @@ obs:
   host: "localhost"
   port: 4455
   password: ""                 # if you set one
+  # OBS Studio executable, used to auto-start OBS if it is not running
+  # (the app asks Y/n first). Leave "" to never auto-start.
+  obs_path: "C:\\Program Files\\obs-studio\\bin\\64bit\\obs64.exe"
   source_name: "Fishing Pier"   # name of a VLC Video Source (or Media Source) in OBS;
                                 # the app creates it automatically if it does not exist
+
+  # Network cache (ms) for the OBS VLC source. Lower = the new camera starts
+  # playing sooner after each switch (smoother rotation); too low may stutter
+  # on slow connections. 0 = libvlc default.
+  vlc_caching_ms: 500
 
   # Text overlay toggles. When true, the app keeps the OBS text sources
   # "Location", "Weather" and "Tide" (created automatically if missing) in
