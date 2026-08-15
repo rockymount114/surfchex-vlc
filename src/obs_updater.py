@@ -164,6 +164,62 @@ class OBSUpdater:
             return False, None, False
         return True, self.VLC_KIND, True
 
+    async def fit_source_to_canvas(self) -> None:
+        """Re-fit the main video source to the current canvas size.
+
+        Needed after the canvas resolution changes (e.g. 4K -> 1080p), because
+        the scene item's old fit bounds no longer match the canvas.
+        """
+        try:
+            scene_name = await self._get_current_scene()
+            if not scene_name:
+                return
+            response = await self._call(
+                obs_requests.GetSceneItemId(
+                    sceneName=scene_name,
+                    sourceName=self.config.obs_source_name,
+                )
+            )
+            item_id = response.datain.get("sceneItemId")
+            await self._fit_item_to_canvas(scene_name, item_id)
+            self.log.info("Re-fitted source '%s' to the new canvas.", self.config.obs_source_name)
+        except Exception as e:
+            self.log.warning("Could not re-fit source to canvas: %s", e)
+
+    async def set_canvas_resolution(self, width: int, height: int) -> bool:
+        """Set the OBS base (canvas) resolution and re-fit the video source.
+
+        Returns True when the canvas is (now) the requested size.
+        """
+        if not self.ws or not self.config.obs_enabled:
+            return False
+        try:
+            current = await self._call(obs_requests.GetVideoSettings())
+            if current.datain.get("baseWidth") == width and current.datain.get("baseHeight") == height:
+                self.log.info("OBS canvas already %dx%d.", width, height)
+                return True
+
+            response = await self._call(
+                obs_requests.SetVideoSettings(
+                    baseWidth=width,
+                    baseHeight=height,
+                    outputWidth=current.datain.get("outputWidth") or width,
+                    outputHeight=current.datain.get("outputHeight") or height,
+                )
+            )
+            self.log.info(
+                "OBS canvas set to %sx%s (output %sx%s).",
+                response.datain.get("baseWidth"),
+                response.datain.get("baseHeight"),
+                response.datain.get("outputWidth"),
+                response.datain.get("outputHeight"),
+            )
+            await self.fit_source_to_canvas()
+            return True
+        except Exception as e:
+            self.log.error("Failed to set OBS canvas resolution: %s", e)
+            return False
+
     async def _fit_item_to_canvas(self, scene_name: str, item_id: int) -> None:
         """Center a newly added scene item and scale it to fit the canvas."""
         try:

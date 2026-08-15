@@ -51,6 +51,26 @@ class StreamBrowser:
             self.config.headless,
         )
 
+    async def park_page(self) -> None:
+        """Unload the camera page (about:blank) to stop its video decoding and
+        JS timers between refreshes.
+
+        The URL has already been captured and OBS/VLC is playing it, so the
+        page does not need to keep running.  The next ``get_fresh_stream_url``
+        navigation reloads the camera page normally.
+        """
+        if not self.page:
+            return
+        try:
+            await self.page.goto(
+                "about:blank",
+                wait_until="domcontentloaded",
+                timeout=5000,
+            )
+            self.log.info("Camera page parked (about:blank) to reduce CPU/GPU usage.")
+        except Exception as e:
+            self.log.warning("Could not park camera page: %s", e)
+
     async def close(self) -> None:
         try:
             if self.context:

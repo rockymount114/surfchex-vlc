@@ -64,7 +64,7 @@ camera: "scpierend"
 # Loop through ALL cameras? 0 = stay on 'camera' only.
 # Set e.g. 600 to automatically switch to the next camera every 10 minutes
 # (starts at the default camera, skips cameras that produce no stream).
-camera_cycle_seconds: 120
+camera_cycle_seconds: 10
 
 # Optional initial URL. It can be the currently valid signed URL.
 # If it expires, Playwright obtains a new one from the active camera page.
@@ -81,6 +81,11 @@ vlc_path: "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"
 headless: true
 
 browser_profile_dir: "state/chromium-profile"
+
+# After a URL is captured, the camera page is unloaded (about:blank) until the
+# next refresh so its video/JS stop consuming CPU/GPU 24/7. Set false only if
+# you ever have trouble capturing the URL.
+park_page: true
 
 # Only capture HLS requests matching this text.
 stream_url_contains: "surfchex.com/hls/"
@@ -133,11 +138,16 @@ obs:
   # "Location", "Weather" and "Tide" (created automatically if missing) in
   # sync with the active camera: the location name, the weather and the tide.
   # Weather/tide are scraped from each camera page at most once per day.
-  camera_location: false
+  camera_location: true
   camera_weather: true
-  camera_tide: false
+  camera_tide: true
 
   # Scroll the "Tide" text right-to-left (marquee) because its line is long.
   # scroll_speed is in pixels per second; set tide_scroll: false for static text.
   tide_scroll: false
   tide_scroll_speed: 30
+
+  # Optional: force the OBS base (canvas) resolution on startup, e.g. to drop
+  # GPU load from a 4K canvas down to 1080p (the video source is re-fitted to
+  # the new canvas automatically). Leave "" to not touch OBS settings.
+  canvas_resolution: "1920x1080"

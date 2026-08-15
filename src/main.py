@@ -78,50 +78,79 @@ def _clean_text(value) -> Optional[str]:
 
 
 def _format_weather(w: dict) -> str:
-    """One-line weather summary for the OBS text overlay."""
+    """One-line weather summary for the OBS text overlay.
+
+    All values go through ``_clean_text`` first, so missing or "--"
+    placeholder values can never crash the formatting.
+    """
     parts = []
+
     title = _clean_text(w.get("title"))
     if title:
         parts.append(title)
-    temp = []
-    if _clean_text(w.get("temp")):
-        temp.append(w["temp"].strip())
-    if _clean_text(w.get("feels")):
-        temp.append("feels %s°" % w["feels"].strip())
+
+    temp_parts = []
+    temp = _clean_text(w.get("temp"))
     if temp:
-        parts.append(" ".join(temp))
-    if _clean_text(w.get("windDir")) or _clean_text(w.get("wind")):
-        parts.append(
-            "Wind %s %s mph"
-            % (w.get("windDir", "").strip(), w.get("wind", "").strip())
-        )
-    if _clean_text(w.get("gusts")):
-        parts.append("Gusts %s mph" % w["gusts"].strip())
-    if _clean_text(w.get("humidity")):
-        parts.append("Humidity %s" % w["humidity"].strip())
-    if _clean_text(w.get("pressure")):
-        parts.append("Pressure %s" % w["pressure"].strip())
-    if _clean_text(w.get("dew")):
-        parts.append("Dew %s" % w["dew"].strip())
-    if _clean_text(w.get("rain")):
-        parts.append("Rain %s" % w["rain"].strip())
+        temp_parts.append(temp)
+    feels = _clean_text(w.get("feels"))
+    if feels:
+        temp_parts.append("feels %s°" % feels)
+    if temp_parts:
+        parts.append(" ".join(temp_parts))
+
+    wind_dir = _clean_text(w.get("windDir"))
+    wind_val = _clean_text(w.get("wind"))
+    if wind_dir or wind_val:
+        parts.append("Wind %s %s mph" % (wind_dir or "", wind_val or ""))
+
+    gusts = _clean_text(w.get("gusts"))
+    if gusts:
+        parts.append("Gusts %s mph" % gusts)
+
+    humidity = _clean_text(w.get("humidity"))
+    if humidity:
+        parts.append("Humidity %s" % humidity)
+
+    pressure = _clean_text(w.get("pressure"))
+    if pressure:
+        parts.append("Pressure %s" % pressure)
+
+    dew = _clean_text(w.get("dew"))
+    if dew:
+        parts.append("Dew %s" % dew)
+
+    rain = _clean_text(w.get("rain"))
+    if rain:
+        parts.append("Rain %s" % rain)
+
     return " | ".join(parts) or "Weather unavailable"
 
 
 def _format_tide(t: dict) -> str:
     """One-line tide summary for the OBS text overlay."""
     parts = []
-    if _clean_text(t.get("now")):
-        parts.append(t["now"].strip())
-    if _clean_text(t.get("nextEvent")):
-        nxt = t["nextEvent"].strip()
-        if _clean_text(t.get("nextHeight")):
-            nxt = "%s (%s)" % (nxt, t["nextHeight"].strip())
+
+    now = _clean_text(t.get("now"))
+    if now:
+        parts.append(now)
+
+    next_event = _clean_text(t.get("nextEvent"))
+    if next_event:
+        nxt = next_event
+        next_height = _clean_text(t.get("nextHeight"))
+        if next_height:
+            nxt = "%s (%s)" % (nxt, next_height)
         parts.append(nxt)
-    if _clean_text(t.get("station")):
-        parts.append(t["station"].strip())
-    if _clean_text(t.get("stationMeta")):
-        parts.append(t["stationMeta"].strip())
+
+    station = _clean_text(t.get("station"))
+    if station:
+        parts.append(station)
+
+    station_meta = _clean_text(t.get("stationMeta"))
+    if station_meta:
+        parts.append(station_meta)
+
     return " | ".join(parts) or "Tide unavailable"
 
 
@@ -161,6 +190,12 @@ async def main() -> None:
             obs_updater = None
     elif config.obs_enabled:
         log.warning("OBS integration enabled in config, but OBSUpdater is not available.")
+
+    # Optional: force the OBS canvas resolution (e.g. 1080p) to cut GPU load.
+    if obs_updater and config.obs_canvas_width > 0 and config.obs_canvas_height > 0:
+        await obs_updater.set_canvas_resolution(
+            config.obs_canvas_width, config.obs_canvas_height
+        )
 
     try:
         # Start the browser (Playwright)
@@ -213,7 +248,7 @@ async def main() -> None:
             Runs on every camera change / URL refresh so the overlays always
             match the source currently shown in OBS.  Each overlay can be
             switched off in config.yaml (camera_location / camera_weather /
-            camera_tide).
+            camera_tide).  A failure in one source never stops the others.
             """
             if not obs_updater:
                 return
@@ -225,17 +260,26 @@ async def main() -> None:
                 "Overlay for '%s': name='%s' weather='%s' tide='%s'",
                 slug, name, weather, tide,
             )
+            overlays = []
             if config.obs_camera_location:
-                await obs_updater.update_text_source(LOCATION_SOURCE, name)
+                overlays.append((LOCATION_SOURCE, name, False))
             if config.obs_camera_weather:
-                await obs_updater.update_text_source(WEATHER_SOURCE, weather)
+                overlays.append((WEATHER_SOURCE, weather, False))
             if config.obs_camera_tide:
-                await obs_updater.update_text_source(
-                    TIDE_SOURCE,
-                    tide,
-                    scroll=config.obs_tide_scroll,
-                    scroll_speed=config.obs_tide_scroll_speed,
-                )
+                overlays.append((TIDE_SOURCE, tide, config.obs_tide_scroll))
+
+            for source_name, text, scroll in overlays:
+                try:
+                    if scroll:
+                        await obs_updater.update_text_source(
+                            source_name, text,
+                            scroll=True,
+                            scroll_speed=config.obs_tide_scroll_speed,
+                        )
+                    else:
+                        await obs_updater.update_text_source(source_name, text)
+                except Exception as e:
+                    log.error("Overlay update failed for '%s': %s", source_name, e)
 
         # Use the initial URL if provided (may be None)
         current_url = config.initial_stream_url
@@ -283,6 +327,12 @@ async def main() -> None:
                 # (camera name / weather / tide, scraped at most once a day).
                 if camera_slugs:
                     await update_overlays(camera_slugs[cycle_index])
+
+                # The URL is captured and OBS/VLC is playing it — unload the
+                # camera page so its video/JS stop using CPU/GPU until the
+                # next refresh (about:blank is reloaded by the next fetch).
+                if config.park_page:
+                    await browser.park_page()
 
                 # Launch VLC with the stream URL (no-op when vlc_player=false)
                 player.start(current_url)

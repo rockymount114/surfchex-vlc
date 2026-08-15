@@ -16,6 +16,7 @@ class Config:
     vlc_path: str
     headless: bool
     browser_profile_dir: str
+    park_page: bool
     stream_url_contains: str
     stream_url_regex: str | None
     refresh_before_seconds: int
@@ -38,6 +39,8 @@ class Config:
     obs_camera_tide: bool
     obs_tide_scroll: bool
     obs_tide_scroll_speed: int
+    obs_canvas_width: int
+    obs_canvas_height: int
 
     def camera_slugs(self) -> list[str]:
         """Ordered camera slugs to use.
@@ -94,6 +97,14 @@ def load_config(path: str | None = None) -> Config:
 
     # init obs data
     obs_data = data.get("obs", {})
+
+    # optional canvas resolution override, e.g. "1920x1080" ("" = untouched)
+    _canvas = str(obs_data.get("canvas_resolution", "")).strip().lower()
+    if "x" in _canvas:
+        _cw, _ch = _canvas.split("x", 1)
+        canvas_w, canvas_h = int(_cw), int(_ch)
+    else:
+        canvas_w, canvas_h = 0, 0
     
     return Config(
         camera_page_url=_expand(data["camera_page_url"]),
@@ -117,6 +128,8 @@ def load_config(path: str | None = None) -> Config:
             "browser_profile_dir",
             str(BASE_DIR / "state" / "chromium-profile"),
         )),
+        # unload the camera page between refreshes to save CPU/GPU
+        park_page=_as_bool(data.get("park_page", True)),
         stream_url_contains=data.get(
             "stream_url_contains",
             "surfchex.com/hls/",
@@ -161,6 +174,10 @@ def load_config(path: str | None = None) -> Config:
         obs_camera_tide=_as_bool(obs_data.get("camera_tide", True)),
         obs_tide_scroll=_as_bool(obs_data.get("tide_scroll", True)),
         obs_tide_scroll_speed=int(obs_data.get("tide_scroll_speed", 30)),
+        # optional: force the OBS base (canvas) resolution on startup,
+        # e.g. "1920x1080" to drop GPU load from a 4K canvas; "" = leave OBS alone
+        obs_canvas_width=canvas_w,
+        obs_canvas_height=canvas_h,
     )
     
     

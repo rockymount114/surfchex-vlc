@@ -164,6 +164,20 @@ A Chromium window will be visible. Watch the console/log for:
 Captured HLS request: https://...
 ```
 
+### Reducing CPU/GPU usage
+
+Between refreshes the camera page is unloaded (`park_page: true`) so its
+video/JS stop running 24/7 — the URL is already captured and OBS/VLC plays it.
+Set `park_page: false` only if you have trouble capturing URLs.
+
+If your OBS canvas is 4K (heavy for weak GPUs), force a 1080p canvas on app
+startup — the video source is re-fitted automatically:
+
+```yaml
+obs:
+  canvas_resolution: "1920x1080"   # "" = leave OBS untouched
+```
+
 If no `.m3u8` is captured:
 
 1. Confirm `camera_page_url`.
