@@ -64,7 +64,7 @@ camera: "scpierend"
 # Loop through ALL cameras? 0 = stay on 'camera' only.
 # Set e.g. 600 to automatically switch to the next camera every 10 minutes
 # (starts at the default camera, skips cameras that produce no stream).
-camera_cycle_seconds: 60
+camera_cycle_seconds: 0
 
 # Optional initial URL. It can be the currently valid signed URL.
 # If it expires, Playwright obtains a new one from the active camera page.
@@ -96,9 +96,10 @@ stream_url_contains: "surfchex.com/hls/"
 stream_url_regex: null
 
 # How many seconds BEFORE the signed URL expires the app starts refreshing
-# (reads the e=... timestamp from the URL). 120 s gives enough headroom for
-# the camera page reload + capture to finish, so the OBS source keeps playing
-# non-stop. The app also auto-widens this if a refresh takes a long time.
+# (reads the e=... timestamp from the URL). SurfChex signed URLs are valid
+# ~10 minutes, so with 120 s the app fetches a fresh URL every ~8 minutes and
+# always pushes a valid one to the OBS source. The app also caps the margin
+# at ~25% of the URL lifetime so short URLs cannot cause a refresh loop.
 refresh_before_seconds: 120
 
 # Wait between recovery attempts.

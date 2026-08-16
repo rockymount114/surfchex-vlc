@@ -9,7 +9,7 @@ from typing import Optional
 
 from config import load_config
 from browser import StreamBrowser
-from vlc import VLCPlayer
+from vlc import VLCPlayer, stream_expiration_epoch
 
 # Try to import OBSUpdater; if missing, disable OBS integration.
 try:
@@ -495,11 +495,19 @@ async def main() -> None:
 
                 # Refresh early enough that OBS never runs out of a valid URL:
                 # at least the configured margin, and at least twice the time
-                # the last fetch took, plus 30 s of slack.
+                # the last fetch took, plus 30 s of slack.  The margin is also
+                # capped at ~25% of the URL's lifetime so a very short-lived
+                # URL can never cause an immediate re-fetch loop.
                 refresh_before = max(
                     config.refresh_before_seconds,
                     int(last_fetch_seconds) * 2 + 30,
                 )
+                url_lifetime = stream_expiration_epoch(current_url)
+                if url_lifetime:
+                    refresh_before = min(
+                        refresh_before,
+                        max(20, url_lifetime // 4),
+                    )
 
                 # Monitor VLC process and URL expiration (and camera rotation)
                 reason = await player.monitor(

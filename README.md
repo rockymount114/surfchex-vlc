@@ -138,9 +138,10 @@ vlc_player: true    # true  = also open the local VLC window (old behavior)
 ```
 
 The app reads the `e=...` expiration timestamp from each signed URL and
-automatically fetches a fresh URL **before** it expires (default 120 s
-headroom, auto-widened if refreshes are slow), then pushes it to OBS so the
-source plays non-stop:
+automatically fetches a fresh URL **before** it expires, then pushes it to OBS
+so the source plays non-stop.  SurfChex signed URLs are valid **~10 minutes**,
+so with 120 s headroom the app refreshes every ~8 minutes (the margin is also
+capped at ~25% of the URL lifetime):
 
 ```yaml
 refresh_before_seconds: 120

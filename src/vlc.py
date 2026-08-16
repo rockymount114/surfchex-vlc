@@ -103,8 +103,11 @@ class VLCPlayer:
                 tz=timezone.utc,
             ).isoformat()
 
+            lifetime = expiration - int(time.time())
             self.log.info(
-                "Signed URL expiration: %s UTC",
+                "Signed URL valid for %s seconds (~%.1f min), expires %s UTC.",
+                max(0, lifetime),
+                max(0, lifetime) / 60.0,
                 expiry_text,
             )
 
