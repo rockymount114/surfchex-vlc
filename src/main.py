@@ -509,7 +509,8 @@ async def main() -> None:
                         max(20, url_lifetime // 4),
                     )
 
-                # Monitor VLC process and URL expiration (and camera rotation)
+                # Monitor VLC process, URL expiration, camera rotation and the
+                # OBS playback state (mid-cycle watchdog).
                 reason = await player.monitor(
                     current_url=current_url,
                     stop_event=stop_event,
@@ -520,6 +521,7 @@ async def main() -> None:
                         if len(camera_slugs) > 1
                         else None
                     ),
+                    obs_updater=obs_updater,
                 )
 
                 # The prefetch served its purpose (or it is moot now) — stop it
@@ -555,11 +557,14 @@ async def main() -> None:
                         current_url = fresh_url
                         continue  # update OBS + re-monitor in the next iteration
 
-                if reason == "url-expiring":
-                    # The signed URL is about to expire: fetch a fresh one
-                    # immediately (no retry sleep) and push it to OBS so
-                    # playback continues without stopping.
-                    log.info("Signed URL about to expire; fetching a fresh URL now.")
+                if reason in ("url-expiring", "playback-error"):
+                    # The signed URL is about to expire or OBS reported the
+                    # stream stalled: fetch a fresh URL immediately (no retry
+                    # sleep) and push it to OBS so playback recovers quickly.
+                    if reason == "playback-error":
+                        log.info("Playback error detected; fetching a fresh URL now.")
+                    else:
+                        log.info("Signed URL about to expire; fetching a fresh URL now.")
                     fetch_start = time.monotonic()
                     fresh_url, cycle_index = await _fetch_fresh_url(
                         browser, config, camera_slugs, cycle_index

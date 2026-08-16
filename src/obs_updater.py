@@ -323,6 +323,20 @@ class OBSUpdater:
             )
             return None
 
+    async def get_media_state(self) -> Optional[str]:
+        """Return the current OBS media state for the video source, or None."""
+        if not self.ws or not self.config.obs_enabled:
+            return None
+        try:
+            status = await self._call(
+                obs_requests.GetMediaInputStatus(
+                    inputName=self.config.obs_source_name
+                )
+            )
+            return status.datain.get("mediaState")
+        except Exception:
+            return None
+
     async def update_text_source(self, source_name: str, text: str) -> None:
         """Create/update an OBS text (GDI+) source with the given text.
 

@@ -84,11 +84,19 @@ class VLCPlayer:
         refresh_before_seconds: int,
         check_interval: int,
         rotate_after_seconds: Optional[float] = None,
+        obs_updater=None,
     ) -> str:
         """Watch until VLC exits, the URL is about to expire, a camera rotation
-        is due, or shutdown is requested.
+        is due, OBS reports a playback error, or shutdown is requested.
 
-        Returns one of: 'vlc-exited', 'url-expiring', 'rotate', 'shutdown'.
+        When ``obs_updater`` is given, the OBS media state is checked every
+        ``check_interval`` seconds and a persistent ERROR state (two
+        consecutive checks) returns ``'playback-error'`` so the caller can
+        self-heal within a few seconds instead of waiting for the next
+        scheduled event.
+
+        Returns one of: 'vlc-exited', 'url-expiring', 'rotate',
+        'playback-error', 'shutdown'.
         """
         expiration = stream_expiration_epoch(current_url)
         rotate_deadline = (
@@ -96,6 +104,7 @@ class VLCPlayer:
             if rotate_after_seconds
             else None
         )
+        error_streak = 0
 
         if expiration:
             expiry_text = datetime.fromtimestamp(
@@ -136,6 +145,23 @@ class VLCPlayer:
             if rotate_deadline is not None and time.monotonic() >= rotate_deadline:
                 self.log.info("Camera rotation interval reached.")
                 return "rotate"
+
+            # Mid-cycle playback watchdog: if OBS reports a media ERROR on
+            # consecutive checks, the stream has stalled — ask the caller to
+            # re-fetch and restart now instead of at the next rotation.
+            if obs_updater is not None:
+                state = await obs_updater.get_media_state()
+                if state == "OBS_MEDIA_STATE_ERROR":
+                    error_streak += 1
+                    self.log.warning(
+                        "OBS reports media error (%d consecutive check%s).",
+                        error_streak,
+                        "" if error_streak == 1 else "s",
+                    )
+                    if error_streak >= 2:
+                        return "playback-error"
+                else:
+                    error_streak = 0
 
             await asyncio.sleep(check_interval)
 

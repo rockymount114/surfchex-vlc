@@ -15,6 +15,10 @@ from config import Config
 
 
 class StreamBrowser:
+    # HLS/fMP4 media segment URLs: blocked so the camera page never actually
+    # downloads/decodes the stream once (or before) we have the .m3u8 URL.
+    _SEGMENT_RE = re.compile(r"\.(ts|m4s|mp4)(\?|$)", re.IGNORECASE)
+
     def __init__(self, config: Config):
         self.config = config
         self.log = logging.getLogger("surfchex.browser")
@@ -35,6 +39,8 @@ class StreamBrowser:
                 "--disable-background-networking",
                 "--disable-background-timer-throttling",
                 "--disable-renderer-backgrounding",
+                "--disable-gpu",   # keep the GPU free for OBS (no video decode needed)
+                "--mute-audio",    # no need to decode/mix audio at all
             ],
         )
 
@@ -45,6 +51,21 @@ class StreamBrowser:
         )
 
         self.page.on("request", self._on_request)
+
+        # Block media-segment downloads so the page never actually streams
+        # video (we only need the .m3u8 URL).  The route persists across
+        # navigations, so it is installed once here.
+        try:
+            await self.page.route(
+                self._SEGMENT_RE,
+                lambda route: route.abort(),
+            )
+            self.log.info(
+                "Media-segment requests blocked; the camera page stays idle "
+                "after the .m3u8 URL is captured."
+            )
+        except Exception as e:
+            self.log.debug("Could not install segment blocker: %s", e)
 
         self.log.info(
             "Playwright started. headless=%s",
