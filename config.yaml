@@ -64,7 +64,7 @@ camera: "scpierend"
 # Loop through ALL cameras? 0 = stay on 'camera' only.
 # Set e.g. 600 to automatically switch to the next camera every 10 minutes
 # (starts at the default camera, skips cameras that produce no stream).
-camera_cycle_seconds: 500
+camera_cycle_seconds: 90
 
 # Optional initial URL. It can be the currently valid signed URL.
 # If it expires, Playwright obtains a new one from the active camera page.

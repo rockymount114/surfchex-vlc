@@ -353,6 +353,24 @@ async def main() -> None:
 
         cycle_index = 0
 
+        # Absolute wall-clock deadline for the next camera rotation.  It is
+        # only advanced when a rotation (or a fresh camera session) actually
+        # happens, so a URL refresh in between can never silently push the
+        # rotation back and starve it (previous bug: the deadline was
+        # recomputed from 'now' on every monitor() call).
+        next_rotation_at: Optional[float] = None
+
+        def reset_rotation_deadline() -> None:
+            """Start a fresh rotation window (new camera session)."""
+            nonlocal next_rotation_at
+            next_rotation_at = (
+                time.monotonic() + config.camera_cycle_seconds
+                if len(camera_slugs) > 1
+                else None
+            )
+
+        reset_rotation_deadline()
+
         # Scraped site info cache: slug -> {"date": "YYYY-MM-DD", "info": {...}}.
         # Camera name / weather / tide are only re-scraped once per day per camera.
         site_info_cache: dict[str, dict] = {}
@@ -453,6 +471,10 @@ async def main() -> None:
                     )
                     last_fetch_seconds = time.monotonic() - fetch_start
                     log.info("Fresh URL fetch took %.1f seconds.", last_fetch_seconds)
+                    if current_url:
+                        # A fresh camera session starts now: begin a new
+                        # rotation window (cold start / full recovery).
+                        reset_rotation_deadline()
 
                 # If still no URL, wait and retry
                 if not current_url:
@@ -510,15 +532,17 @@ async def main() -> None:
                     )
 
                 # Monitor VLC process, URL expiration, camera rotation and the
-                # OBS playback state (mid-cycle watchdog).
+                # OBS playback state (mid-cycle watchdog).  The rotation uses
+                # the remaining time to the absolute deadline so URL refreshes
+                # in between never push the rotation back.
                 reason = await player.monitor(
                     current_url=current_url,
                     stop_event=stop_event,
                     refresh_before_seconds=refresh_before,
                     check_interval=config.monitor_interval_seconds,
                     rotate_after_seconds=(
-                        config.camera_cycle_seconds
-                        if len(camera_slugs) > 1
+                        max(0.0, next_rotation_at - time.monotonic())
+                        if next_rotation_at is not None
                         else None
                     ),
                     obs_updater=obs_updater,
@@ -535,6 +559,7 @@ async def main() -> None:
                     # Time to move to the next camera.  Use the prefetched URL
                     # when it is ready; otherwise fall back to a live fetch.
                     cycle_index = (cycle_index + 1) % len(camera_slugs)
+                    reset_rotation_deadline()
                     next_slug = camera_slugs[cycle_index]
                     log.info(
                         "Switching to camera '%s' (%s).",
@@ -582,13 +607,15 @@ async def main() -> None:
                 # Wait before trying to get a fresh URL
                 await asyncio.sleep(config.retry_seconds)
 
-                # Fetch a new signed URL from the camera page
+                # Fetch a new signed URL from the camera page (full recovery)
                 fetch_start = time.monotonic()
                 current_url, cycle_index = await _fetch_fresh_url(
                     browser, config, camera_slugs, cycle_index
                 )
                 last_fetch_seconds = time.monotonic() - fetch_start
                 log.info("Fresh URL fetch took %.1f seconds.", last_fetch_seconds)
+                if current_url:
+                    reset_rotation_deadline()
 
             except Exception:
                 log.exception(
